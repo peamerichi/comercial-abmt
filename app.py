@@ -20,6 +20,19 @@ from database import get_db as _raw_get_db, init_db, get_next_number, do_backup,
 
 app = Flask(__name__)
 
+# === GZIP COMPRESSION ===
+try:
+    from flask_compress import Compress
+    app.config['COMPRESS_MIMETYPES'] = [
+        'text/html', 'text/css', 'text/javascript',
+        'application/javascript', 'application/json',
+        'image/svg+xml'
+    ]
+    app.config['COMPRESS_MIN_SIZE'] = 500
+    Compress(app)
+except ImportError:
+    pass
+
 # === AUTO-CLOSE DB CONNECTIONS ===
 # Track all connections opened during a request and close them automatically
 # This prevents "database is locked" from leaked connections
@@ -63,6 +76,18 @@ _login_lock = threading.Lock()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = not app.debug  # Secure em produção
+
+# === CACHE HEADERS FOR STATIC FILES ===
+@app.after_request
+def add_cache_headers(response):
+    """Add cache headers to reduce repeat downloads."""
+    if request.path.startswith('/static/'):
+        # Cache static assets for 1 hour, revalidate after
+        response.headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400'
+    elif request.path.startswith('/api/'):
+        # API responses: no cache
+        response.headers['Cache-Control'] = 'no-store'
+    return response
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 UPLOAD_DELETED_DIR = os.path.join(UPLOAD_DIR, 'deleted')

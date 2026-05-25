@@ -85,9 +85,12 @@ const APP = {
     _csrfToken: null,
 
     async init() {
-        const res = await this.api('/api/me');
+        // Fetch /me and /csrf in parallel to save a round trip
+        const [res, csrf] = await Promise.all([
+            this.api('/api/me'),
+            this.api('/api/csrf')
+        ]);
         if (res && res.authenticated) {
-            const csrf = await this.api('/api/csrf');
             if (csrf) this._csrfToken = csrf.token;
             this.user = res.user;
             this.renderApp();
@@ -98,7 +101,7 @@ const APP = {
     },
 
     async api(url, opts = {}) {
-        const timeout = opts.timeout || 15000;
+        const timeout = opts.timeout || 30000;
         try {
             const options = { headers: { 'Content-Type': 'application/json' }, ...opts };
             delete options.timeout;

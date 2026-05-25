@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abmt-comercial-v50';
+const CACHE_NAME = 'abmt-comercial-v51';
 const ASSETS = [
     '/',
     '/static/css/style.css',
@@ -28,7 +28,7 @@ self.addEventListener('fetch', (e) => {
         ));
         return;
     }
-    // CDN assets (Chart.js, Google Fonts): cache first, fallback to network and cache
+    // CDN assets: cache first, fallback to network and cache
     if (e.request.url.includes('cdn.jsdelivr.net') || e.request.url.includes('fonts.googleapis.com') || e.request.url.includes('fonts.gstatic.com')) {
         e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
             const clone = res.clone();
@@ -37,6 +37,13 @@ self.addEventListener('fetch', (e) => {
         })));
         return;
     }
-    // Static assets: cache first, then network
-    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+    // Static assets: stale-while-revalidate (serve from cache instantly, update in background)
+    e.respondWith(caches.match(e.request).then(cached => {
+        const networkFetch = fetch(e.request).then(res => {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+            return res;
+        }).catch(() => cached);
+        return cached || networkFetch;
+    }));
 });

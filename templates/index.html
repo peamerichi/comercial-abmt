@@ -7,24 +7,30 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>ABMT Comercial</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=49">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="stylesheet" href="/static/css/style.css?v=51">
     <link rel="manifest" href="/manifest.json">
 </head>
 <body>
-<div id="app"></div>
+<div id="app">
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px">
+        <div style="font-size:28px;font-weight:700;color:#7c5dfa">ABMT</div>
+        <div style="width:32px;height:32px;border:3px solid rgba(124,93,250,.2);border-top-color:#7c5dfa;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
+</div>
 
-<script src="/static/js/app.js?v=49"></script>
-<script src="/static/js/forms.js?v=49"></script>
+<script src="/static/js/app.js?v=51"></script>
+<script src="/static/js/forms.js?v=51"></script>
 <script>
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').then(reg => {
-            // Check for SW updates every 5 minutes
             setInterval(() => reg.update(), 5 * 60 * 1000);
             reg.addEventListener('updatefound', () => {
                 const newSW = reg.installing;
                 newSW.addEventListener('statechange', () => {
                     if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
-                        // New version available — show banner
                         const banner = document.createElement('div');
                         banner.id = 'sw-update-banner';
                         banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a73e8;color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;z-index:9999;font-size:14px;box-shadow:0 -2px 8px rgba(0,0,0,.2)';
