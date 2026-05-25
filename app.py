@@ -234,7 +234,7 @@ def change_password():
         user = conn.execute("SELECT password_hash, must_change_password FROM users WHERE id=?",
                             (session['user_id'],)).fetchone()
         # Exigir senha atual EXCETO na troca obrigatória (primeiro login)
-        if not user.get('must_change_password') and not current_password:
+        if not user['must_change_password'] and not current_password:
             return jsonify({'error': 'Senha atual é obrigatória'}), 400
         if current_password and not check_password_hash(user['password_hash'], current_password):
             return jsonify({'error': 'Senha atual incorreta'}), 400
