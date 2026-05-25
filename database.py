@@ -653,8 +653,89 @@ def init_db():
         c.execute('''INSERT OR IGNORE INTO users (username, password_hash, nome, perfil, must_change_password)
                      VALUES (?, ?, ?, ?, 1)''', (username, generate_password_hash(pwd), nome, perfil))
 
+    # Seed real data if empty (first deploy)
+    count = c.execute("SELECT COUNT(*) FROM propostas").fetchone()[0]
+    if count == 0:
+        _seed_real_data(c)
+
     conn.commit()
     conn.close()
+
+
+def _seed_real_data(c):
+    """Insert real ABMT data on first deploy"""
+    # Cadastros
+    c.execute('''INSERT OR IGNORE INTO cadastros (id,cnpj_cpf,tipo_pessoa,razao_social,nome_fantasia,endereco_cep,endereco_rua,endereco_numero,endereco_complemento,endereco_bairro,endereco_cidade,endereco_uf,contatos_adicionais,tags,vendedor_responsavel_id,dias_inadimplencia,status,created_at,updated_at)
+        VALUES (1,'31671149000126','PJ','R C DE QUEIROZ TRANSFORMADORES','TRANSFORTECH BRASIL TRANSFORMADORES','59073270','','','','PLANALTO','NATAL','RN','[]','[]',2,30,'Ativo','2026-05-25 13:35:04','2026-05-25 13:35:04')''')
+    c.execute('''INSERT OR IGNORE INTO cadastros (id,cnpj_cpf,tipo_pessoa,razao_social,nome_fantasia,endereco_cep,endereco_rua,endereco_numero,endereco_complemento,endereco_bairro,endereco_cidade,endereco_uf,contatos_adicionais,tags,vendedor_responsavel_id,dias_inadimplencia,status,created_at,updated_at)
+        VALUES (2,'46361184000116','PJ','VS STEEL COMERCIO E SERVICO LTDA','','03317000','RUA SERRA DE BOTUCATU','878','SALA 1503','VILA GOMES CARDIM','SAO PAULO','SP','[]','[]',2,30,'Ativo','2026-05-25 13:43:37','2026-05-25 13:43:37')''')
+
+    # Propostas
+    c.execute('''INSERT OR IGNORE INTO propostas (id,numero,tipo,status,cadastro_id,vendedor_id,uf_destino,icms_isento,data_emissao,validade_dias,data_expiracao,condicao_pagamento,forma_pagamento,dados_pagamento,frete,transportadora,obs_transporte,obs_cliente,obs_interna,incluir_dados_bancarios,incluir_politica,mostrar_impostos,ordem_gerada_id,ordem_gerada_tipo,created_at,updated_at,comissao_forma,intermediario_obs)
+        VALUES (1,'PROP-0001','VENDA','Convertida',1,2,'RN',0,'2026-05-25 13:36:50',7,'2026-06-01','{"tipo": "30/60/90 dias"}','Faturado','{}','FOB','cm ','','','',0,0,1,1,'OV','2026-05-25 13:36:50','2026-05-25 13:37:05','Dinheiro','')''')
+    c.execute('''INSERT OR IGNORE INTO propostas (id,numero,tipo,status,cadastro_id,vendedor_id,uf_destino,icms_isento,data_emissao,validade_dias,data_expiracao,condicao_pagamento,forma_pagamento,dados_pagamento,frete,transportadora,obs_transporte,obs_cliente,obs_interna,incluir_dados_bancarios,incluir_politica,mostrar_impostos,ordem_gerada_id,ordem_gerada_tipo,created_at,updated_at,comissao_forma,intermediario_obs)
+        VALUES (2,'PROP-0002','COMPRA','Convertida',2,2,'SP',0,'2026-05-25 13:46:03',7,'2026-06-01','{"tipo": "À vista"}','Faturado','{}','CIF','ABMT','','','',1,1,1,1,'OC','2026-05-25 13:46:03','2026-05-25 14:03:33','Dinheiro','')''')
+
+    # Proposta items
+    for pid, ordem, specs, peso, qty, vunit, vtot, dt in [
+        (1,0,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-1127","marca":"NATIVA","condicao":"Não funcionando","nucleo":"Empilhado","preco_unidade":21500,"preco_por_kva":71.67}',1300,1,21500,21500,'2026-05-25 13:36:50'),
+        (1,1,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-127","marca":"UNIAO","condicao":"Não funcionando","nucleo":"Empilhado","preco_unidade":21500,"preco_por_kva":71.67}',1300,1,21500,21500,'2026-05-25 13:36:50'),
+        (2,0,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-127","marca":"UNIAO","condicao":"Não funcionando","nucleo":"Empilhado","preco_unidade":12000,"preco_por_kva":40}',1300,1,12000,12000,'2026-05-25 13:46:03'),
+        (2,1,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-127","marca":"NATIVA","condicao":"Não funcionando","preco_unidade":10000,"preco_por_kva":33.33}',1300,1,10000,10000,'2026-05-25 13:46:03'),
+    ]:
+        c.execute('''INSERT INTO proposta_items (proposta_id,ordem,categoria,campos_especificos,descricao_complementar,peso_unitario,peso_total,quantidade,unidade,valor_unitario,desconto_valor,valor_total,created_at)
+            VALUES (?,'Transformador Usado',?,'',?,?,?,?,'UNIDADE',?,0,?,?)''', (pid, ordem, specs, peso, peso, qty, vunit, vtot, dt))
+
+    # OV
+    c.execute('''INSERT OR IGNORE INTO ordens_venda (id,numero,status,proposta_id,cadastro_id,vendedor_id,uf_destino,icms_isento,data_emissao,condicao_pagamento,forma_pagamento,dados_pagamento,frete,transportadora,obs_transporte,observacoes,obs_interna,created_at,updated_at)
+        VALUES (1,'OV-0001','Aprovada',1,1,2,'RN',0,'2026-05-25 13:37:05','{"tipo": "30/60/90 dias"}','Faturado','{}','FOB','cm ','','','','2026-05-25 13:37:05','2026-05-25 13:37:05')''')
+
+    # OV items
+    for ordem, specs, vunit, cpct, cval in [
+        (0,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-1127","marca":"NATIVA","condicao":"Não funcionando","nucleo":"Empilhado","preco_unidade":21500,"preco_por_kva":71.67}',21500,3.0,540.19),
+        (1,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-127","marca":"UNIAO","condicao":"Não funcionando","nucleo":"Empilhado","preco_unidade":21500,"preco_por_kva":71.67}',21500,3.0,540.19),
+    ]:
+        c.execute('''INSERT INTO ov_items (ov_id,ordem,categoria,campos_especificos,descricao_complementar,peso_unitario,peso_total,quantidade,unidade,valor_unitario,desconto_valor,valor_total,comissao_percentual,comissao_valor,status,created_at)
+            VALUES (1,?,'Transformador Usado',?,'',1300,1300,1,'UNIDADE',?,0,?,?,?,'Pendente','2026-05-25 13:37:05')''', (ordem, specs, vunit, vunit, cpct, cval))
+
+    # OV parcelas
+    for num, val, venc in [(1,14333.33,'2026-06-24'),(2,14333.33,'2026-07-24'),(3,14333.34,'2026-08-23')]:
+        c.execute('''INSERT INTO ov_parcelas (ov_id,numero_parcela,total_parcelas,valor,data_vencimento,status,created_at,updated_at)
+            VALUES (1,?,3,?,?,'Pendente','2026-05-25 13:37:05','2026-05-25 13:37:05')''', (num, val, venc))
+
+    # OC
+    c.execute('''INSERT OR IGNORE INTO ordens_compra (id,numero,status,proposta_id,cadastro_id,comprador_id,data_emissao,condicao_pagamento,forma_pagamento,dados_pagamento,frete,transportadora,obs_transporte,observacoes,obs_interna,created_at,updated_at)
+        VALUES (1,'OC-0001','Rascunho',2,2,2,'2026-05-25 14:03:33','{"tipo": "À vista"}','Faturado','{}','CIF','ABMT','','','','2026-05-25 14:03:33','2026-05-25 14:03:33')''')
+
+    # OC items
+    for ordem, specs, vunit, vtot in [
+        (0,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-127","marca":"UNIAO","condicao":"Não funcionando","nucleo":"Empilhado","preco_unidade":12000,"preco_por_kva":40}',12000,12000),
+        (1,'{"potencia":"300","tensao_alta":"15","tensao_baixa":"220-127","marca":"NATIVA","condicao":"Não funcionando","preco_unidade":10000,"preco_por_kva":33.33}',10000,10000),
+    ]:
+        c.execute('''INSERT INTO oc_items (oc_id,ordem,categoria,campos_especificos,descricao_complementar,peso_unitario,peso_total,quantidade,unidade,valor_unitario,desconto_valor,valor_total,quantidade_recebida,status,created_at,updated_at)
+            VALUES (1,?,'Transformador Usado',?,'',1300,1300,1,'UNIDADE',?,0,?,0,'Pendente','2026-05-25 14:03:33','2026-05-25 14:03:33')''', (ordem, specs, vunit, vtot))
+
+    # OC parcela
+    c.execute('''INSERT INTO oc_parcelas (oc_id,numero_parcela,total_parcelas,valor,data_vencimento,status,created_at,updated_at)
+        VALUES (1,1,1,22000,'2026-05-25','Pendente','2026-05-25 14:03:33','2026-05-25 14:03:33')''')
+
+    # Links OC-OV
+    c.execute('''INSERT INTO oc_ov_link_items (oc_id,ov_id,oc_item_id,quantidade_alocada,unidade,valor_unitario,valor_total_alocado,observacao,created_by,created_at)
+        VALUES (1,1,1,1,'UNIDADE',12000,12000,'',2,'2026-05-25 15:07:10')''')
+    c.execute('''INSERT INTO oc_ov_link_items (oc_id,ov_id,oc_item_id,quantidade_alocada,unidade,valor_unitario,valor_total_alocado,observacao,created_by,created_at)
+        VALUES (1,1,2,1,'UNIDADE',10000,10000,'',2,'2026-05-25 15:07:10')''')
+
+    # Proposta log
+    for pid, acao, det, dt in [
+        (1,'Criação','Proposta PROP-0001 criada','2026-05-25 13:36:50'),
+        (1,'Mudança de status','Rascunho → Enviada','2026-05-25 13:37:03'),
+        (1,'Conversão','Gerou OV-0001','2026-05-25 13:37:05'),
+        (2,'Criação','Proposta PROP-0002 criada','2026-05-25 13:46:03'),
+        (2,'Mudança de status','Rascunho → Enviada','2026-05-25 14:03:31'),
+        (2,'Conversão','Gerou OC-0001','2026-05-25 14:03:33'),
+    ]:
+        c.execute('''INSERT INTO proposta_log (proposta_id,user_id,acao,detalhes,created_at)
+            VALUES (?,2,?,?,?)''', (pid, acao, det, dt))
 
 
 def get_next_number(prefix, conn):
