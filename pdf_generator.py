@@ -4,7 +4,7 @@ Uses reportlab for PDF generation
 """
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 try:
     from reportlab.lib import colors
@@ -171,6 +171,17 @@ def generate_proposta_pdf(proposta_id):
     cond_items = []
     if prop['forma_pagamento']:
         cond_items.append(f"Pagamento: {prop['forma_pagamento']}")
+
+    # Parse condicao_pagamento and show installment schedule
+    try:
+        cond_json = json.loads(prop['condicao_pagamento'] or '{}')
+        cond_tipo = cond_json.get('tipo', '')
+    except:
+        cond_tipo = ''
+
+    if cond_tipo and cond_tipo != 'Personalizado':
+        cond_items.append(f"Condição: {cond_tipo}")
+
     if prop['frete']:
         frete_text = f"Frete: {prop['frete']}"
         if prop['transportadora']:
@@ -183,6 +194,49 @@ def generate_proposta_pdf(proposta_id):
 
     for item in cond_items:
         elements.append(Paragraph(f"• {item}", styles['Normal']))
+
+    # Payment schedule table
+    if cond_tipo and cond_tipo not in ('Personalizado', 'À vista'):
+        dias_str = cond_tipo.replace(' dias', '').split('/')
+        dias = [int(d) for d in dias_str if d.strip().isdigit()]
+        if dias:
+            try:
+                data_base = datetime.strptime(prop['data_emissao'][:10], '%Y-%m-%d')
+            except:
+                data_base = datetime.now()
+            valor_parcela = total_valor / len(dias) if len(dias) > 0 else 0
+
+            elements.append(Spacer(1, 3*mm))
+            parcela_data = [['Parcela', 'Vencimento', 'Dias', 'Valor']]
+            for i, d in enumerate(dias):
+                dt_venc = data_base + timedelta(days=d)
+                parcela_data.append([
+                    f"{i+1}/{len(dias)}",
+                    dt_venc.strftime('%d/%m/%Y'),
+                    f"{d} dias",
+                    f"R$ {format_money(valor_parcela)}"
+                ])
+            parcela_data.append(['', '', Paragraph('<b>Total</b>', styles['Normal']), Paragraph(f"<b>R$ {format_money(total_valor)}</b>", styles['Normal'])])
+
+            parcela_widths = [22*mm, 35*mm, 22*mm, 40*mm]
+            pt = Table(parcela_data, colWidths=parcela_widths)
+            pt.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.15, 0.18, 0.22)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+                ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -2), 0.5, colors.Color(0.3, 0.3, 0.3)),
+                ('LINEABOVE', (0, -1), (-1, -1), 1.5, colors.Color(0.2, 0.2, 0.2)),
+                ('PADDING', (0, 0), (-1, -1), 5),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.Color(0.95, 0.95, 0.95)),
+            ]))
+            elements.append(pt)
+    elif cond_tipo == 'À vista':
+        elements.append(Spacer(1, 2*mm))
+        elements.append(Paragraph(f"Pagamento à vista — R$ {format_money(total_valor)}", styles['Normal']))
 
     # Bank details (optional)
     if prop['incluir_dados_bancarios']:
