@@ -2061,7 +2061,9 @@ const APP = {
 
             <div class="card">
                 <div class="card-header"><span class="card-title">${LI('clipboard',20)} Condições</span></div>
-                <div class="detail-field"><label>Pagamento</label><span>${p.forma_pagamento || '-'}${(() => { try { const cond = JSON.parse(p.condicao_pagamento || '{}'); return cond.tipo === 'Personalizado' && cond.descricao ? ` — ${cond.descricao}` : (cond.tipo ? ` (${cond.tipo})` : ''); } catch { return ''; } })()}</span></div>
+                <div class="detail-field"><label>Forma</label><span>${p.forma_pagamento || '-'}</span></div>
+                <div class="detail-field"><label>Condição</label><span>${(() => { try { const cond = JSON.parse(p.condicao_pagamento || '{}'); return cond.tipo === 'Personalizado' && cond.descricao ? cond.descricao : (cond.tipo || '-'); } catch { return '-'; } })()}</span></div>
+                ${this._renderParcelasPreview(p)}
                 <div class="detail-field"><label>Frete</label><span>${p.frete || '-'} ${p.transportadora ? `(${p.transportadora})` : ''} ${p.valor_frete ? `— R$ ${this.formatMoney(p.valor_frete)}` : ''}</span></div>
                 ${p.prazo_entrega ? `<div class="detail-field"><label>Prazo</label><span>${p.prazo_entrega}</span></div>` : ''}
                 ${p.obs_cliente ? `<div class="detail-field"><label>Obs. cliente</label><span>${sanitize(p.obs_cliente)}</span></div>` : ''}
@@ -2083,6 +2085,50 @@ const APP = {
         <div class="detail-meta">
             Vendedor: ${p.vendedor_nome || '-'} · Emissão: ${this.formatDate(p.data_emissao)} · Validade: ${this.formatDate(p.data_expiracao)}
         </div>`;
+    },
+
+    _renderParcelasPreview(p) {
+        try {
+            const cond = JSON.parse(p.condicao_pagamento || '{}');
+            if (!cond.tipo || cond.tipo === 'Personalizado') return '';
+            if (cond.tipo === 'À vista') {
+                return `<div style="margin:8px 0;padding:8px 12px;background:var(--bg-tertiary);border-radius:8px;font-size:13px">
+                    ${LI('coins',14)} Pagamento à vista — <strong>R$ ${this.formatMoney(p.valor_bruto)}</strong>
+                </div>`;
+            }
+            const dias = cond.tipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
+            if (dias.length === 0) return '';
+            const total = p.valor_bruto || 0;
+            const valorParcela = total / dias.length;
+            const dataBase = new Date(p.data_emissao || Date.now());
+            let html = `<div style="margin:8px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                <div style="background:var(--bg-tertiary);padding:8px 12px;font-weight:600;font-size:13px;display:flex;justify-content:space-between">
+                    <span>${LI('calendar',14)} Previsão de Pagamentos</span>
+                    <span>${dias.length} parcela${dias.length>1?'s':''}</span>
+                </div>`;
+            dias.forEach((d, i) => {
+                const dt = new Date(dataBase);
+                dt.setDate(dt.getDate() + d);
+                const hoje = new Date();
+                const vencida = dt < hoje;
+                const proxima = !vencida && (i === 0 || new Date(dataBase.getTime() + dias[i-1]*86400000) < hoje);
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-top:1px solid var(--border);font-size:13px;${vencida ? 'background:rgba(239,68,68,.08)' : proxima ? 'background:rgba(124,93,250,.06)' : ''}">
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <span style="background:${vencida ? 'var(--danger)' : proxima ? 'var(--accent)' : 'var(--bg-tertiary)'};color:${vencida || proxima ? '#fff' : 'var(--text-primary)'};padding:2px 8px;border-radius:4px;font-weight:600;font-size:12px">${i+1}/${dias.length}</span>
+                        <span>${dt.toLocaleDateString('pt-BR')}</span>
+                        <span style="color:var(--text-muted);font-size:11px">(${d}d)</span>
+                        ${vencida ? `<span style="color:var(--danger);font-size:11px;font-weight:600">VENCIDA</span>` : ''}
+                        ${proxima ? `<span style="color:var(--accent);font-size:11px;font-weight:600">PRÓXIMA</span>` : ''}
+                    </div>
+                    <span style="font-weight:600">R$ ${this.formatMoney(valorParcela)}</span>
+                </div>`;
+            });
+            html += `<div style="display:flex;justify-content:space-between;padding:8px 12px;border-top:2px solid var(--border);font-weight:700;font-size:13px;background:var(--bg-tertiary)">
+                <span>Total</span>
+                <span style="color:var(--success)">R$ ${this.formatMoney(total)}</span>
+            </div></div>`;
+            return html;
+        } catch { return ''; }
     },
 
     getRefPrice(item) {

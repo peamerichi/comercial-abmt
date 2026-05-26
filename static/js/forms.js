@@ -780,6 +780,11 @@ const FORMS = {
         if (totalEmbalagem > 0) html += `<span>EMBALAGEM: R$ ${APP.formatMoney(totalEmbalagem)}</span>`;
         html += `<span>VALOR TOTAL: R$ ${APP.formatMoney(totalValor)}</span></div>`;
         container.innerHTML = html;
+        // Update parcelas preview with new total
+        const condSelect = document.querySelector('[name="condicao_tipo"]');
+        if (condSelect && condSelect.value && condSelect.value !== 'Personalizado') {
+            this.onCondicaoChange(condSelect.value);
+        }
     },
 
     setSpec(index, field, value, btn) {
@@ -1412,7 +1417,8 @@ const FORMS = {
         const container = document.getElementById('parcelas-preview');
         if (!container) return;
         if (tipo === 'À vista') {
-            container.innerHTML = `<div class="alert alert-info">${LI("coins",16)} Pagamento à vista</div>`;
+            const total = this._getPropostaTotal();
+            container.innerHTML = `<div class="alert alert-info">${LI("coins",16)} Pagamento à vista${total > 0 ? ` — <strong>R$ ${APP.formatMoney(total)}</strong>` : ''}</div>`;
             return;
         }
         if (tipo === 'Personalizado') {
@@ -1441,14 +1447,50 @@ const FORMS = {
         // Parse days from condition string (e.g., "30/60/90 dias" -> [30, 60, 90])
         const dias = tipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
         const hoje = new Date();
-        let html = `<div class="alert alert-info"><strong>${LI("calendar",14)} Previsão de parcelas:</strong><br>`;
+        const total = this._getPropostaTotal();
+        const valorParcela = dias.length > 0 && total > 0 ? total / dias.length : 0;
+        let html = `<div class="parcelas-table" style="margin-top:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <div style="background:var(--bg-tertiary);padding:8px 12px;font-weight:600;font-size:13px;display:flex;justify-content:space-between">
+                <span>${LI("calendar",14)} Previsão de Pagamentos</span>
+                <span>${dias.length} parcela${dias.length>1?'s':''}</span>
+            </div>`;
         dias.forEach((d, i) => {
             const dt = new Date(hoje);
             dt.setDate(dt.getDate() + d);
-            html += `<div style="margin-top:4px">Parcela ${i+1}/${dias.length} — vence em <strong>${dt.toLocaleDateString('pt-BR')}</strong> (${d} dias)</div>`;
+            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-top:1px solid var(--border);font-size:13px">
+                <div>
+                    <span style="color:var(--accent);font-weight:600">${i+1}/${dias.length}</span>
+                    <span style="margin-left:8px">${dt.toLocaleDateString('pt-BR')}</span>
+                    <span style="color:var(--text-muted);font-size:11px;margin-left:4px">(${d}d)</span>
+                </div>
+                <span style="font-weight:600">${valorParcela > 0 ? 'R$ ' + APP.formatMoney(valorParcela) : '-'}</span>
+            </div>`;
         });
+        if (total > 0) {
+            html += `<div style="display:flex;justify-content:space-between;padding:8px 12px;border-top:2px solid var(--border);font-weight:700;font-size:13px;background:var(--bg-tertiary)">
+                <span>Total</span>
+                <span style="color:var(--success)">R$ ${APP.formatMoney(total)}</span>
+            </div>`;
+        }
         html += '</div>';
         container.innerHTML = html;
+    },
+
+    _getPropostaTotal() {
+        // Try to get total from items totals display or from item calculations
+        const totalsEl = document.getElementById('items-totals');
+        if (totalsEl) {
+            const match = totalsEl.textContent.replace(/\./g,'').replace(',','.').match(/([\d]+\.?\d*)/);
+            if (match) return parseFloat(match[1]);
+        }
+        // Fallback: sum item values
+        let total = 0;
+        if (this.items) {
+            this.items.forEach(item => {
+                total += parseFloat(item.valor_total) || 0;
+            });
+        }
+        return total;
     },
 
     // ===== PROPOSTA RÁPIDA =====
