@@ -80,9 +80,28 @@ def generate_proposta_pdf(proposta_id):
 
     elements = []
 
-    # Header
-    elements.append(Paragraph(f"PROPOSTA COMERCIAL Nº {prop['numero']}", styles['Title2']))
-    elements.append(Paragraph(f"Data: {format_date(prop['data_emissao'])} — Válida até {format_date(prop['data_expiracao'])}", styles['Subtitle']))
+    # Header with logo
+    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'img', 'logo_abmt_transparent.png')
+    if os.path.exists(logo_path):
+        try:
+            logo = Image(logo_path, width=50*mm, height=16*mm)
+            header_data = [[
+                logo,
+                [Paragraph(f"PROPOSTA COMERCIAL Nº {prop['numero']}", styles['Title2']),
+                 Paragraph(f"Data: {format_date(prop['data_emissao'])} — Válida até {format_date(prop['data_expiracao'])}", styles['Subtitle'])]
+            ]]
+            header_table = Table(header_data, colWidths=[55*mm, 115*mm])
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('PADDING', (0, 0), (-1, -1), 0),
+            ]))
+            elements.append(header_table)
+        except:
+            elements.append(Paragraph(f"PROPOSTA COMERCIAL Nº {prop['numero']}", styles['Title2']))
+            elements.append(Paragraph(f"Data: {format_date(prop['data_emissao'])} — Válida até {format_date(prop['data_expiracao'])}", styles['Subtitle']))
+    else:
+        elements.append(Paragraph(f"PROPOSTA COMERCIAL Nº {prop['numero']}", styles['Title2']))
+        elements.append(Paragraph(f"Data: {format_date(prop['data_emissao'])} — Válida até {format_date(prop['data_expiracao'])}", styles['Subtitle']))
 
     # Client info
     elements.append(Paragraph("DESTINATÁRIO", styles['SectionTitle']))
