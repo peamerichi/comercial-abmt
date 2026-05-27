@@ -89,7 +89,8 @@ def add_cache_headers(response):
         response.headers['Cache-Control'] = 'no-store'
     return response
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+_data_dir = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(_data_dir, 'uploads')
 UPLOAD_DELETED_DIR = os.path.join(UPLOAD_DIR, 'deleted')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DELETED_DIR, exist_ok=True)

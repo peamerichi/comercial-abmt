@@ -61,7 +61,8 @@ def generate_proposta_pdf(proposta_id):
     conn.close()
 
     # Generate PDF
-    pdf_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'pdfs')
+    _data_dir = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.path.dirname(os.path.abspath(__file__))
+    pdf_dir = os.path.join(_data_dir, 'uploads', 'pdfs')
     os.makedirs(pdf_dir, exist_ok=True)
     filename = f"{prop['numero'].replace('-', '_')}.pdf"
     filepath = os.path.join(pdf_dir, filename)
