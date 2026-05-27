@@ -6,10 +6,24 @@ import sqlite3
 import os
 import json
 import shutil
+import logging
 from datetime import datetime, timedelta
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comercial.db')
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups')
+logger = logging.getLogger(__name__)
+
+# Use persistent volume if RAILWAY_VOLUME_MOUNT_PATH is set, otherwise local
+_data_dir = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(_data_dir, 'comercial.db')
+BACKUP_DIR = os.path.join(_data_dir, 'backups')
+
+def restore_from_cloud():
+    """Try to restore DB from GitHub if it doesn't exist locally (Render ephemeral fix)."""
+    try:
+        from cloud_sync import restore_from_github
+        if restore_from_github(DB_PATH):
+            logger.info('Database restored from GitHub backup')
+    except Exception as e:
+        logger.warning(f'Cloud restore skipped: {e}')
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=10)  # Wait up to 10s if locked

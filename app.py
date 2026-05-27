@@ -16,7 +16,7 @@ from flask import Flask, request, jsonify, render_template, session, send_file, 
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-from database import get_db as _raw_get_db, init_db, get_next_number, do_backup, check_backup_on_start, update_fts, DB_PATH, BACKUP_DIR
+from database import get_db as _raw_get_db, init_db, get_next_number, do_backup, check_backup_on_start, update_fts, DB_PATH, BACKUP_DIR, restore_from_cloud
 
 app = Flask(__name__)
 
@@ -87,6 +87,9 @@ def add_cache_headers(response):
     elif request.path.startswith('/api/'):
         # API responses: no cache
         response.headers['Cache-Control'] = 'no-store'
+    # Trigger cloud backup after successful write operations (POST/PUT/PATCH/DELETE)
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and request.path.startswith('/api/') and response.status_code < 400:
+        _trigger_cloud_backup()
     return response
 
 _data_dir = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.path.dirname(os.path.abspath(__file__))
@@ -6338,12 +6341,24 @@ def _atualizar_parcelas_vencidas():
     except Exception:
         pass
 
+# Restore DB from GitHub if this is a fresh Render deploy (no local DB)
+restore_from_cloud()
+
 # Initialize DB on import (needed for gunicorn/Render)
 init_db()
 check_backup_on_start()
 _atualizar_parcelas_vencidas()
 t = threading.Thread(target=backup_scheduler, daemon=True)
 t.start()
+
+# GitHub cloud backup — upload after data changes
+def _trigger_cloud_backup():
+    """Schedule a background upload to GitHub after data changes."""
+    try:
+        from cloud_sync import schedule_background_upload
+        schedule_background_upload(DB_PATH, delay=5)
+    except Exception:
+        pass
 
 if __name__ == '__main__':
 
