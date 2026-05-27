@@ -2100,22 +2100,37 @@ const APP = {
                 <div class="detail-field"><label>Forma</label><span>${p.forma_pagamento || '-'}</span></div>
                 <div class="detail-field"><label>Condição</label><span>${(() => { try { const cond = JSON.parse(p.condicao_pagamento || '{}'); return cond.tipo === 'Personalizado' && cond.descricao ? cond.descricao : (cond.tipo || '-'); } catch { return '-'; } })()}</span></div>
                 ${this._renderParcelasPreview(p)}
-                ${p.tipo === 'VENDA' && p.juros_total > 0 ? `
-                <div style="margin:8px 0;border:1px solid var(--warning);border-radius:8px;overflow:hidden;background:rgba(255,193,7,0.05)">
+                ${(() => {
+                    if (p.tipo !== 'VENDA' || !p.valor_bruto || p.valor_bruto <= 0) return '';
+                    try {
+                        const cond = JSON.parse(p.condicao_pagamento || '{}');
+                        if (!cond.tipo || cond.tipo === 'Personalizado' || cond.tipo === 'À vista') return '';
+                        const dias = cond.tipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
+                        if (dias.length === 0) return '';
+                        const taxa = (p.taxa_juros_aplicada || 2.8) / 100;
+                        const vp = p.valor_bruto / dias.length;
+                        let tcj = 0;
+                        dias.forEach(d => { tcj += vp * Math.pow(1 + taxa, d / 30); });
+                        const juros = Math.round((tcj - p.valor_bruto) * 100) / 100;
+                        const liquido = Math.round((p.valor_bruto - juros) * 100) / 100;
+                        if (juros <= 0) return '';
+                        return `<div style="margin:8px 0;border:1px solid var(--warning);border-radius:8px;overflow:hidden;background:rgba(255,193,7,0.05)">
                     <div style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--warning);background:rgba(255,193,7,0.1);display:flex;align-items:center;gap:6px">
-                        ${LI("alert-triangle",14)} Custo Financeiro do Prazo <span style="font-size:10px;font-weight:400;color:var(--text-secondary)">(taxa: ${(p.taxa_juros_aplicada||0).toFixed(1)}% a.m.)</span>
+                        ${LI("alert-triangle",14)} Custo Financeiro do Prazo <span style="font-size:10px;font-weight:400;color:var(--text-secondary)">(taxa: ${(p.taxa_juros_aplicada||2.8).toFixed(1)}% a.m.)</span>
                     </div>
                     <div style="padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center">
                         <div>
-                            <div style="font-size:10px;color:var(--text-secondary)">Juros (${(p.juros_total / p.valor_bruto * 100).toFixed(1)}%)</div>
-                            <div style="font-size:14px;font-weight:700;color:var(--danger)">- R$ ${this.formatMoney(p.juros_total)}</div>
+                            <div style="font-size:10px;color:var(--text-secondary)">Juros (${(juros / p.valor_bruto * 100).toFixed(1)}%)</div>
+                            <div style="font-size:14px;font-weight:700;color:var(--danger)">- R$ ${this.formatMoney(juros)}</div>
                         </div>
                         <div>
                             <div style="font-size:10px;color:var(--text-secondary)">Líquido ABMT</div>
-                            <div style="font-size:14px;font-weight:700;color:var(--success)">R$ ${this.formatMoney(p.valor_liquido_abmt)}</div>
+                            <div style="font-size:14px;font-weight:700;color:var(--success)">R$ ${this.formatMoney(liquido)}</div>
                         </div>
                     </div>
-                </div>` : ''}
+                </div>`;
+                    } catch { return ''; }
+                })()}
                 <div class="detail-field"><label>Frete</label><span>${p.frete || '-'} ${p.transportadora ? `(${p.transportadora})` : ''} ${p.valor_frete ? `— R$ ${this.formatMoney(p.valor_frete)}` : ''}</span></div>
                 ${p.prazo_entrega ? `<div class="detail-field"><label>Prazo</label><span>${p.prazo_entrega}</span></div>` : ''}
                 ${p.obs_cliente ? `<div class="detail-field"><label>Obs. cliente</label><span>${sanitize(p.obs_cliente)}</span></div>` : ''}
