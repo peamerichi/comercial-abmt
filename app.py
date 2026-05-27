@@ -1012,8 +1012,9 @@ def create_proposta():
             forma_pagamento, dados_pagamento, frete, transportadora, valor_frete, obs_transporte,
             prazo_entrega, garantia, obs_cliente, obs_interna, incluir_dados_bancarios,
             incluir_politica, mostrar_impostos, intermediario_id, valor_bruto_venda,
-            valor_liquido_venda, comissao_forma, intermediario_obs)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            valor_liquido_venda, comissao_forma, intermediario_obs,
+            juros_total, valor_liquido_abmt, taxa_juros_aplicada)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (numero, data['tipo'], data.get('cadastro_id'),
              data.get('vendedor_id', user['id']) if user['perfil'] != 'vendedor' else user['id'],
              data.get('uf_destino'), data.get('icms_isento', 0), data.get('proposta_vinculada_id'),
@@ -1025,7 +1026,9 @@ def create_proposta():
              data.get('incluir_dados_bancarios', 0), data.get('incluir_politica', 0),
              data.get('mostrar_impostos', 1), data.get('intermediario_id'),
              data.get('valor_bruto_venda'), data.get('valor_liquido_venda'),
-             data.get('comissao_forma'), data.get('intermediario_obs')))
+             data.get('comissao_forma'), data.get('intermediario_obs'),
+             data.get('juros_total', 0), data.get('valor_liquido_abmt', 0),
+             data.get('taxa_juros_aplicada', 0)))
 
         prop_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()['id']
 
@@ -1199,7 +1202,8 @@ def update_proposta(id):
                      'frete','transportadora','valor_frete','obs_transporte','prazo_entrega',
                      'garantia','obs_cliente','obs_interna','incluir_dados_bancarios',
                      'incluir_politica','mostrar_impostos','intermediario_id','valor_bruto_venda',
-                     'valor_liquido_venda','comissao_forma','intermediario_obs']
+                     'valor_liquido_venda','comissao_forma','intermediario_obs',
+                     'juros_total','valor_liquido_abmt','taxa_juros_aplicada']
         if user['perfil'] == 'vendedor':
             updatable = [f for f in updatable if f not in ('vendedor_id', 'vendedor_responsavel_id')]
         fields = []

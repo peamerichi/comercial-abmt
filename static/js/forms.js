@@ -65,6 +65,14 @@ const FORMS = {
         const tipo = params.tipo || proposta?.tipo || 'VENDA';
         const users = await APP.api('/api/users');
 
+        // Load taxa de juros pra calculadora de venda a prazo
+        if (tipo === 'VENDA') {
+            try {
+                const cfg = await APP.api('/api/config');
+                this._taxaJurosMensal = parseFloat(cfg?.taxa_juros_venda_prazo) || 2.8;
+            } catch { this._taxaJurosMensal = 2.8; }
+        }
+
         el.innerHTML = `
         <div style="margin-bottom:16px">
             <button class="btn btn-outline btn-sm" onclick="APP.navigate('${tipo==='VENDA'?'vendas':'compras'}')">← Voltar</button>
@@ -948,6 +956,10 @@ const FORMS = {
             valor_liquido_venda: parseFloat(form.querySelector('[name=valor_liquido_venda]')?.value) || null,
             comissao_forma: form.querySelector('[name=comissao_forma]')?.value || null,
             intermediario_obs: form.querySelector('[name=intermediario_obs]')?.value || '',
+            // Juros calculadora venda a prazo
+            juros_total: this._jurosCalculado?.juros_total || 0,
+            valor_liquido_abmt: this._jurosCalculado?.valor_liquido_abmt || 0,
+            taxa_juros_aplicada: this._jurosCalculado?.taxa_aplicada || 0,
             items
         };
 
@@ -1416,9 +1428,15 @@ const FORMS = {
     onCondicaoChange(tipo) {
         const container = document.getElementById('parcelas-preview');
         if (!container) return;
+        const isVenda = document.querySelector('[name=tipo]')?.value === 'VENDA';
+
         if (tipo === 'À vista') {
             const total = this._getPropostaTotal();
-            container.innerHTML = `<div class="alert alert-info">${LI("coins",16)} Pagamento à vista${total > 0 ? ` — <strong>R$ ${APP.formatMoney(total)}</strong>` : ''}</div>`;
+            container.innerHTML = `<div class="alert alert-info">${LI("coins",16)} Pagamento à vista${total > 0 ? ` — <strong>R$ ${APP.formatMoney(total)}</strong>` : ''}
+                ${isVenda && total > 0 ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Sem custo financeiro — líquido ABMT: <strong>R$ ${APP.formatMoney(total)}</strong></div>` : ''}
+            </div>`;
+            // Store juros data for saving
+            this._jurosCalculado = { juros_total: 0, valor_liquido_abmt: total, taxa_aplicada: 0 };
             return;
         }
         if (tipo === 'Personalizado') {
@@ -1430,7 +1448,7 @@ const FORMS = {
                         placeholder="Ex: 50% antecipado + 50% na entrega" value="">
                 </div>
             </div>`;
-            // Load saved conditions
+            this._jurosCalculado = null;
             APP.api('/api/condicoes-salvas').then(data => {
                 if (data && data.length > 0) {
                     const list = document.getElementById('condicoes-salvas-list');
@@ -1444,35 +1462,103 @@ const FORMS = {
             });
             return;
         }
+
         // Parse days from condition string (e.g., "30/60/90 dias" -> [30, 60, 90])
         const dias = tipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
         const hoje = new Date();
         const total = this._getPropostaTotal();
-        const valorParcela = dias.length > 0 && total > 0 ? total / dias.length : 0;
+        const valorParcelaSemJuros = dias.length > 0 && total > 0 ? total / dias.length : 0;
+
+        // Juros compostos (mesma lógica da planilha Excel)
+        const taxa = (this._taxaJurosMensal || 2.8) / 100; // ex: 0.028
+        let totalComJuros = 0;
+        const parcelas = dias.map((d, i) => {
+            const meses = d / 30; // 30d = 1 mês, 60d = 2 meses, etc.
+            const parcelaComJuros = valorParcelaSemJuros * Math.pow(1 + taxa, meses);
+            totalComJuros += parcelaComJuros;
+            const dt = new Date(hoje);
+            dt.setDate(dt.getDate() + d);
+            return { dias: d, meses, semJuros: valorParcelaSemJuros, comJuros: parcelaComJuros, data: dt };
+        });
+        const jurosTotal = totalComJuros - total;
+        const liquidoABMT = total - jurosTotal;
+
+        // Store for saving
+        this._jurosCalculado = { juros_total: Math.round(jurosTotal * 100) / 100, valor_liquido_abmt: Math.round(liquidoABMT * 100) / 100, taxa_aplicada: this._taxaJurosMensal || 2.8 };
+
         let html = `<div class="parcelas-table" style="margin-top:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
             <div style="background:var(--bg-tertiary);padding:8px 12px;font-weight:600;font-size:13px;display:flex;justify-content:space-between">
                 <span>${LI("calendar",14)} Previsão de Pagamentos</span>
                 <span>${dias.length} parcela${dias.length>1?'s':''}</span>
             </div>`;
-        dias.forEach((d, i) => {
-            const dt = new Date(hoje);
-            dt.setDate(dt.getDate() + d);
-            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-top:1px solid var(--border);font-size:13px">
-                <div>
-                    <span style="color:var(--accent);font-weight:600">${i+1}/${dias.length}</span>
-                    <span style="margin-left:8px">${dt.toLocaleDateString('pt-BR')}</span>
-                    <span style="color:var(--text-muted);font-size:11px;margin-left:4px">(${d}d)</span>
-                </div>
-                <span style="font-weight:600">${valorParcela > 0 ? 'R$ ' + APP.formatMoney(valorParcela) : '-'}</span>
+
+        // Header row for interest table (only show if VENDA and has value)
+        if (isVenda && total > 0) {
+            html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;padding:6px 12px;border-top:1px solid var(--border);font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:var(--bg-secondary)">
+                <span>Parcela</span><span style="text-align:right">Sem juros</span><span style="text-align:right">Com juros</span>
             </div>`;
+        }
+
+        parcelas.forEach((p, i) => {
+            if (isVenda && total > 0) {
+                html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;padding:8px 12px;border-top:1px solid var(--border);font-size:13px">
+                    <div>
+                        <span style="color:var(--accent);font-weight:600">${i+1}/${dias.length}</span>
+                        <span style="margin-left:6px">${p.data.toLocaleDateString('pt-BR')}</span>
+                        <span style="color:var(--text-muted);font-size:11px;margin-left:4px">(${p.dias}d)</span>
+                    </div>
+                    <span style="text-align:right;color:var(--text-secondary)">${APP.formatMoney(p.semJuros)}</span>
+                    <span style="text-align:right;font-weight:600;color:var(--warning)">${APP.formatMoney(p.comJuros)}</span>
+                </div>`;
+            } else {
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-top:1px solid var(--border);font-size:13px">
+                    <div>
+                        <span style="color:var(--accent);font-weight:600">${i+1}/${dias.length}</span>
+                        <span style="margin-left:8px">${p.data.toLocaleDateString('pt-BR')}</span>
+                        <span style="color:var(--text-muted);font-size:11px;margin-left:4px">(${p.dias}d)</span>
+                    </div>
+                    <span style="font-weight:600">${p.semJuros > 0 ? 'R$ ' + APP.formatMoney(p.semJuros) : '-'}</span>
+                </div>`;
+            }
         });
+
         if (total > 0) {
             html += `<div style="display:flex;justify-content:space-between;padding:8px 12px;border-top:2px solid var(--border);font-weight:700;font-size:13px;background:var(--bg-tertiary)">
-                <span>Total</span>
+                <span>Total (valor da proposta)</span>
                 <span style="color:var(--success)">R$ ${APP.formatMoney(total)}</span>
             </div>`;
         }
-        html += '</div>';
+
+        // Painel de custo financeiro — só pra VENDA e com valor
+        if (isVenda && total > 0 && jurosTotal > 0) {
+            const pctJuros = (jurosTotal / total * 100).toFixed(1);
+            html += `</div>
+            <div style="margin-top:8px;border:1px solid var(--warning);border-radius:8px;overflow:hidden;background:rgba(255,193,7,0.05)">
+                <div style="padding:10px 12px;font-size:13px;font-weight:600;color:var(--warning);background:rgba(255,193,7,0.1);display:flex;align-items:center;gap:6px">
+                    ${LI("alert-triangle",16)} Custo Financeiro do Prazo <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">(taxa: ${(this._taxaJurosMensal||2.8).toFixed(1)}% a.m.)</span>
+                </div>
+                <div style="padding:10px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+                    <div>
+                        <div style="font-size:11px;color:var(--text-secondary)">Total com juros</div>
+                        <div style="font-size:16px;font-weight:700;color:var(--warning)">R$ ${APP.formatMoney(totalComJuros)}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-secondary)">Juros (${pctJuros}%)</div>
+                        <div style="font-size:16px;font-weight:700;color:var(--danger)">- R$ ${APP.formatMoney(jurosTotal)}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-secondary)">Líquido ABMT</div>
+                        <div style="font-size:16px;font-weight:700;color:var(--success)">R$ ${APP.formatMoney(liquidoABMT)}</div>
+                    </div>
+                </div>
+                <div style="padding:6px 12px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);text-align:center">
+                    ⚠ Uso interno — não aparece no PDF do cliente
+                </div>
+            </div>`;
+        } else {
+            html += '</div>';
+        }
+
         container.innerHTML = html;
     },
 

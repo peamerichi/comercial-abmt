@@ -4431,7 +4431,9 @@ const APP = {
                 <div class="form-row-3">
                     <div class="form-group"><label>PIS/COFINS (%)</label><input type="number" step="0.01" class="form-control" id="cfg-pis" value="${config.pis_percentual || 9.25}"></div>
                     <div class="form-group"><label>Margem mínima alerta (%)</label><input type="number" step="0.1" class="form-control" id="cfg-margem" value="${config.margem_minima_alerta || 10}"></div>
+                    <div class="form-group"><label>Taxa juros venda a prazo (% a.m.)</label><input type="number" step="0.01" class="form-control" id="cfg-taxa-juros" value="${config.taxa_juros_venda_prazo || 2.8}"></div>
                 </div>
+                <p style="font-size:11px;color:var(--text-secondary);margin-bottom:12px">A taxa de juros é usada para calcular o custo financeiro das vendas a prazo. O vendedor vê no form da proposta o valor com juros e o líquido ABMT. <strong>Não aparece no PDF do cliente.</strong></p>
                 <div style="margin-top:12px"><strong>Tabela ICMS por UF (saindo de SP):</strong></div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-top:8px">
                     ${['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map(uf => {
@@ -4626,6 +4628,7 @@ const APP = {
             const res = await this.api('/api/config', { method: 'PUT', body: {
                 pis_percentual: document.getElementById('cfg-pis').value,
                 margem_minima_alerta: document.getElementById('cfg-margem').value,
+                taxa_juros_venda_prazo: document.getElementById('cfg-taxa-juros').value,
                 icms_tabela: JSON.stringify(icms)
             }});
             if (res?.ok) this.toast('Impostos salvos!', 'success');

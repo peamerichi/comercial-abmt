@@ -573,8 +573,16 @@ def init_db():
     except sqlite3.OperationalError:
         pass  # column already exists
 
+    # Migration: add juros fields to propostas (calculadora venda a prazo)
+    for col in ['juros_total REAL DEFAULT 0', 'valor_liquido_abmt REAL DEFAULT 0', 'taxa_juros_aplicada REAL DEFAULT 0']:
+        try:
+            c.execute(f"ALTER TABLE propostas ADD COLUMN {col}")
+        except sqlite3.OperationalError:
+            pass
+
     # === SEED DEFAULT CONFIGS ===
     defaults = {
+        'taxa_juros_venda_prazo': '2.8',
         'pis_percentual': '9.25',
         'margem_minima_alerta': '15',
         'dias_inadimplencia_padrao': '30',

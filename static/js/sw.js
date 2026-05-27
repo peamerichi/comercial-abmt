@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abmt-comercial-v54';
+const CACHE_NAME = 'abmt-comercial-v55';
 const ASSETS = [
     '/',
     '/static/css/style.css',
