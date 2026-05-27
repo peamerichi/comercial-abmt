@@ -4379,6 +4379,63 @@ def dashboard_advanced():
             'variacao_preco': variacao
         })
 
+    # Subcategorias detalhadas — agrupa por categoria + specs (potência, tipo, etc.)
+    detalhe_itens = conn.execute(f"""
+        SELECT i.categoria, i.unidade, i.campos_especificos, i.quantidade, i.peso_total,
+            i.valor_total, i.valor_unitario, oc.numero as oc_numero, oc.id as oc_id,
+            c.razao_social as fornecedor, oc.data_emissao
+        FROM oc_items i JOIN ordens_compra oc ON i.oc_id = oc.id
+        LEFT JOIN cadastros c ON oc.cadastro_id = c.id
+        WHERE strftime('%m', oc.data_emissao) = ? AND strftime('%Y', oc.data_emissao) = ?
+        AND oc.status != 'Cancelada' {vendedor_filter_oc} {cat_filter_oc} {seg_filter_oc}
+        ORDER BY i.categoria, i.valor_total DESC
+    """, [mes_str, ano_str] + params_c + cat_params_c + seg_params_c).fetchall()
+
+    # Build subcategories per category
+    cat_subcats = {}
+    for item in detalhe_itens:
+        specs = json.loads(item['campos_especificos'] or '{}')
+        cat = item['categoria']
+        # Build sub-label from key specs
+        sub_parts = []
+        if specs.get('potencia'):
+            sub_parts.append(f"{specs['potencia']} kVA")
+        if specs.get('tipo'):
+            sub_parts.append(specs['tipo'])
+        if specs.get('tipo_aco'):
+            sub_parts.append(specs['tipo_aco'])
+        if specs.get('espessura'):
+            sub_parts.append(f"Esp. {specs['espessura']}")
+        if specs.get('marca'):
+            sub_parts.append(specs['marca'])
+        sub_label = ' · '.join(sub_parts) if sub_parts else 'Sem detalhe'
+
+        if cat not in cat_subcats:
+            cat_subcats[cat] = {}
+        if sub_label not in cat_subcats[cat]:
+            cat_subcats[cat][sub_label] = {'qtd': 0, 'peso': 0, 'valor': 0, 'compras': []}
+        cat_subcats[cat][sub_label]['qtd'] += (item['quantidade'] or 0)
+        cat_subcats[cat][sub_label]['peso'] += (item['peso_total'] or 0)
+        cat_subcats[cat][sub_label]['valor'] += (item['valor_total'] or 0)
+        cat_subcats[cat][sub_label]['compras'].append({
+            'oc_id': item['oc_id'], 'oc_numero': item['oc_numero'],
+            'fornecedor': item['fornecedor'] or '', 'data': item['data_emissao'],
+            'qtd': item['quantidade'], 'peso': item['peso_total'] or 0,
+            'valor': item['valor_total'] or 0, 'preco_unit': item['valor_unitario'] or 0
+        })
+
+    # Attach subcats to analytics_categorias
+    for ac in analytics_categorias:
+        subs = cat_subcats.get(ac['categoria'], {})
+        ac['subcategorias'] = [
+            {'label': k, 'qtd': round(v['qtd'], 2), 'peso': round(v['peso'], 2),
+             'valor': round(v['valor'], 2),
+             'preco_medio': round(v['valor'] / v['qtd'], 2) if v['qtd'] > 0 else 0,
+             'preco_medio_kg': round(v['valor'] / v['peso'], 2) if v['peso'] > 0 else 0,
+             'compras': v['compras']}
+            for k, v in sorted(subs.items(), key=lambda x: -x[1]['valor'])
+        ]
+
     # OCs pendentes de recebimento
     ocs_pendentes = conn.execute(f"""
         SELECT oc.id, oc.numero, c.razao_social as fornecedor,

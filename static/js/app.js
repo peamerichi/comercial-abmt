@@ -1344,26 +1344,62 @@ const APP = {
         <!-- PREÇO MÉDIO POR CATEGORIA -->
         ${c.analytics_categorias && c.analytics_categorias.length > 0 ? `
         <div class="card">
-            <div class="card-header"><span class="card-title">${LI('bar-chart-3',20)} Preço Médio por Material</span></div>
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                <span class="card-title">${LI('bar-chart-3',20)} Preço Médio por Material</span>
+                <div style="display:flex;gap:4px" id="preco-unit-toggle">
+                    <button class="btn-sm btn-active" data-unit="un" onclick="APP._togglePrecoUnit('un')">Por Unidade</button>
+                    <button class="btn-sm" data-unit="kg" onclick="APP._togglePrecoUnit('kg')">Por Kg</button>
+                </div>
+            </div>
             <div style="overflow-x:auto">
             <table class="cat-table">
-                <thead><tr><th>MATERIAL</th><th>QTD</th><th>PESO</th><th>VALOR TOTAL</th><th>PREÇO MÉDIO</th><th>VS MÊS ANT.</th></tr></thead>
+                <thead><tr><th style="width:35%">MATERIAL</th><th>QTD</th><th>PESO</th><th>VALOR TOTAL</th><th>PREÇO MÉDIO</th><th>VS MÊS ANT.</th></tr></thead>
                 <tbody>
-                    ${c.analytics_categorias.map(cat => {
-                        const varClass = cat.variacao_preco > 0 ? 'trend-up' : (cat.variacao_preco < 0 ? 'trend-down' : '');
+                    ${c.analytics_categorias.map((cat, ci) => {
                         const varIcon = cat.variacao_preco > 0 ? LI('arrow-up',12) : (cat.variacao_preco < 0 ? LI('arrow-down',12) : '');
                         const varColor = cat.variacao_preco > 0 ? 'var(--danger)' : (cat.variacao_preco < 0 ? 'var(--success)' : 'var(--text-secondary)');
-                        return `<tr>
-                            <td><strong>${cat.categoria.replace('de Aço Silício','').trim()}</strong><br><span style="font-size:11px;color:var(--text-secondary)">${cat.unidade}</span></td>
+                        const hasSubs = cat.subcategorias && cat.subcategorias.length > 0;
+                        const precoKg = cat.peso_total > 0 ? (cat.valor_total / cat.peso_total) : 0;
+                        return `<tr style="cursor:${hasSubs?'pointer':'default'}" onclick="${hasSubs?`APP._toggleCatDetail(${ci})`:''}">
+                            <td><strong>${hasSubs?LI('chevron-right',14)+' ':'' }${cat.categoria.replace('de Aço Silício','').trim()}</strong><br><span style="font-size:11px;color:var(--text-secondary)">${cat.unidade}</span></td>
                             <td>${APP.formatNumber(cat.qtd_total)}</td>
                             <td>${cat.peso_total > 0 ? APP.formatNumber(cat.peso_total) + ' kg' : '-'}</td>
                             <td>R$ ${APP.formatMoney(cat.valor_total)}</td>
-                            <td><strong>R$ ${APP.formatMoney(cat.preco_medio)}</strong><span style="font-size:11px;color:var(--text-secondary)">/${cat.unidade}</span></td>
+                            <td>
+                                <span class="preco-un"><strong>R$ ${APP.formatMoney(cat.preco_medio)}</strong><span style="font-size:11px;color:var(--text-secondary)">/${cat.unidade}</span></span>
+                                <span class="preco-kg" style="display:none"><strong>R$ ${APP.formatMoney(precoKg)}</strong><span style="font-size:11px;color:var(--text-secondary)">/KG</span></span>
+                            </td>
                             <td style="color:${varColor}">
                                 ${cat.variacao_preco !== 0 ? `${varIcon} ${Math.abs(cat.variacao_preco)}%` : '-'}
                                 ${cat.preco_medio_anterior > 0 ? `<br><span style="font-size:10px;color:var(--text-secondary)">ant: R$ ${APP.formatMoney(cat.preco_medio_anterior)}</span>` : ''}
                             </td>
-                        </tr>`;
+                        </tr>
+                        ${hasSubs ? `<tr class="cat-detail cat-detail-${ci}" style="display:none"><td colspan="6" style="padding:0">
+                            <div style="background:var(--bg-secondary);border-left:3px solid var(--accent);margin:0">
+                                ${cat.subcategorias.map(sub => {
+                                    const subPrecoKg = sub.peso > 0 ? (sub.valor / sub.peso) : 0;
+                                    return `<div style="padding:8px 12px;border-bottom:1px solid var(--border)">
+                                        <div style="display:flex;justify-content:space-between;align-items:center">
+                                            <div>
+                                                <strong style="font-size:13px">${sub.label}</strong>
+                                                <span style="font-size:11px;color:var(--text-secondary);margin-left:8px">${APP.formatNumber(sub.qtd)} un · ${sub.peso > 0 ? APP.formatNumber(sub.peso)+' kg' : ''}</span>
+                                            </div>
+                                            <div style="text-align:right">
+                                                <span class="preco-un"><strong>R$ ${APP.formatMoney(sub.preco_medio)}</strong><span style="font-size:11px;color:var(--text-secondary)">/${cat.unidade}</span></span>
+                                                <span class="preco-kg" style="display:none"><strong>R$ ${APP.formatMoney(subPrecoKg)}</strong><span style="font-size:11px;color:var(--text-secondary)">/KG</span></span>
+                                                <span style="font-size:11px;color:var(--text-secondary);margin-left:8px">Total: R$ ${APP.formatMoney(sub.valor)}</span>
+                                            </div>
+                                        </div>
+                                        ${sub.compras && sub.compras.length > 0 ? `<div style="margin-top:6px;font-size:12px">
+                                            ${sub.compras.map(comp => `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--text-secondary);border-top:1px dotted var(--border)">
+                                                <span><a href="#" onclick="event.stopPropagation();APP.navigate('oc_view',{id:${comp.oc_id}});return false" style="color:var(--accent)">${comp.oc_numero}</a> · ${sanitize(comp.fornecedor).substring(0,30)} · ${APP.formatDate(comp.data)}</span>
+                                                <span>${APP.formatNumber(comp.qtd)} un${comp.peso > 0 ? ' · '+APP.formatNumber(comp.peso)+'kg' : ''} · <strong>R$ ${APP.formatMoney(comp.valor)}</strong></span>
+                                            </div>`).join('')}
+                                        </div>` : ''}
+                                    </div>`;
+                                }).join('')}
+                            </div>
+                        </td></tr>` : ''}`;
                     }).join('')}
                 </tbody>
             </table>
@@ -5430,6 +5466,27 @@ const APP = {
             return true;
         }
         return false;
+    },
+
+    // ===== COMPRAS DASH HELPERS =====
+    _togglePrecoUnit(unit) {
+        document.querySelectorAll('.preco-un').forEach(el => el.style.display = unit === 'un' ? '' : 'none');
+        document.querySelectorAll('.preco-kg').forEach(el => el.style.display = unit === 'kg' ? '' : 'none');
+        const wrap = document.getElementById('preco-unit-toggle');
+        if (wrap) wrap.querySelectorAll('.btn-sm').forEach(b => b.classList.toggle('btn-active', b.getAttribute('data-unit') === unit));
+    },
+    _toggleCatDetail(ci) {
+        const rows = document.querySelectorAll(`.cat-detail-${ci}`);
+        rows.forEach(r => {
+            const open = r.style.display === 'none';
+            r.style.display = open ? '' : 'none';
+        });
+        // Rotate chevron icon on parent row
+        const allCatRows = document.querySelectorAll('.cat-table tbody tr:not(.cat-detail)');
+        if (allCatRows[ci]) {
+            const svg = allCatRows[ci].querySelector('svg');
+            if (svg) svg.style.transform = rows[0] && rows[0].style.display !== 'none' ? 'rotate(90deg)' : '';
+        }
     },
 
     // ===== UTILS =====

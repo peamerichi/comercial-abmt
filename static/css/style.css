@@ -522,7 +522,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 }
 .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 
-.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; transition: all .2s; }
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm.btn-active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-block { width: 100%; }
 .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
 
