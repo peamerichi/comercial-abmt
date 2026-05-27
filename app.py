@@ -4396,18 +4396,21 @@ def dashboard_advanced():
     for item in detalhe_itens:
         specs = json.loads(item['campos_especificos'] or '{}')
         cat = item['categoria']
-        # Build sub-label from key specs
+        # Build sub-label — agrupa por specs técnicos principais (potência, tipo aço, espessura)
+        # Marca e condição vão nos detalhes individuais, não no agrupamento
         sub_parts = []
         if specs.get('potencia'):
             sub_parts.append(f"{specs['potencia']} kVA")
         if specs.get('tipo'):
             sub_parts.append(specs['tipo'])
+        if specs.get('nucleo'):
+            sub_parts.append(specs['nucleo'])
         if specs.get('tipo_aco'):
             sub_parts.append(specs['tipo_aco'])
         if specs.get('espessura'):
             sub_parts.append(f"Esp. {specs['espessura']}")
-        if specs.get('marca'):
-            sub_parts.append(specs['marca'])
+        if specs.get('largura'):
+            sub_parts.append(f"Larg. {specs['largura']}")
         sub_label = ' · '.join(sub_parts) if sub_parts else 'Sem detalhe'
 
         if cat not in cat_subcats:
@@ -4417,11 +4420,20 @@ def dashboard_advanced():
         cat_subcats[cat][sub_label]['qtd'] += (item['quantidade'] or 0)
         cat_subcats[cat][sub_label]['peso'] += (item['peso_total'] or 0)
         cat_subcats[cat][sub_label]['valor'] += (item['valor_total'] or 0)
+        # Detalhes extras pra exibir nas compras individuais
+        detalhe_parts = []
+        if specs.get('marca'):
+            detalhe_parts.append(specs['marca'])
+        if specs.get('condicao'):
+            detalhe_parts.append(specs['condicao'])
+        if specs.get('tensao_alta') or specs.get('tensao_baixa'):
+            detalhe_parts.append(f"{specs.get('tensao_alta','')}/{specs.get('tensao_baixa','')}")
         cat_subcats[cat][sub_label]['compras'].append({
             'oc_id': item['oc_id'], 'oc_numero': item['oc_numero'],
             'fornecedor': item['fornecedor'] or '', 'data': item['data_emissao'],
             'qtd': item['quantidade'], 'peso': item['peso_total'] or 0,
-            'valor': item['valor_total'] or 0, 'preco_unit': item['valor_unitario'] or 0
+            'valor': item['valor_total'] or 0, 'preco_unit': item['valor_unitario'] or 0,
+            'detalhe': ' · '.join(detalhe_parts) if detalhe_parts else ''
         })
 
     # Attach subcats to analytics_categorias

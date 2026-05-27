@@ -1392,7 +1392,7 @@ const APP = {
                                         </div>
                                         ${sub.compras && sub.compras.length > 0 ? `<div style="margin-top:6px;font-size:12px">
                                             ${sub.compras.map(comp => `<div style="display:flex;justify-content:space-between;padding:3px 0;color:var(--text-secondary);border-top:1px dotted var(--border)">
-                                                <span><a href="#" onclick="event.stopPropagation();APP.navigate('oc_view',{id:${comp.oc_id}});return false" style="color:var(--accent)">${comp.oc_numero}</a> · ${sanitize(comp.fornecedor).substring(0,30)} · ${APP.formatDate(comp.data)}</span>
+                                                <span><a href="#" onclick="event.stopPropagation();APP.navigate('oc_view',{id:${comp.oc_id}});return false" style="color:var(--accent)">${comp.oc_numero}</a> · ${sanitize(comp.fornecedor).substring(0,30)}${comp.detalhe ? ' · '+sanitize(comp.detalhe) : ''} · ${APP.formatDate(comp.data)}</span>
                                                 <span>${APP.formatNumber(comp.qtd)} un${comp.peso > 0 ? ' · '+APP.formatNumber(comp.peso)+'kg' : ''} · <strong>R$ ${APP.formatMoney(comp.valor)}</strong></span>
                                             </div>`).join('')}
                                         </div>` : ''}
