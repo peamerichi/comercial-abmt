@@ -221,7 +221,12 @@ def generate_proposta_pdf(proposta_id):
         dias = [int(d) for d in dias_str if d.strip().isdigit()]
         if dias:
             try:
-                db_fat = prop.get('data_base_faturamento') or prop['data_emissao']
+                # sqlite3.Row doesn't have .get() — use try/except for column access
+                try:
+                    db_fat = prop['data_base_faturamento']
+                except (IndexError, KeyError):
+                    db_fat = None
+                db_fat = db_fat or prop['data_emissao']
                 data_base = datetime.strptime(db_fat[:10], '%Y-%m-%d')
             except:
                 data_base = datetime.now()

@@ -1502,7 +1502,12 @@ def converter_proposta(id):
                 if dias_list:
                     n_parcelas = len(dias_list)
                     valor_parcela = round(valor_bruto_total / n_parcelas, 2)
-                    data_base = datetime.now()
+                    # Use data_base_faturamento from proposta, fallback to data_emissao, then now()
+                    try:
+                        db_fat = prop['data_base_faturamento'] or prop['data_emissao']
+                        data_base = datetime.strptime(db_fat[:10], '%Y-%m-%d')
+                    except:
+                        data_base = datetime.now()
                     for i, dias in enumerate(dias_list):
                         venc = (data_base + timedelta(days=dias)).strftime('%Y-%m-%d')
                         # Last parcela adjusts for rounding
@@ -1510,9 +1515,14 @@ def converter_proposta(id):
                         conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
                             VALUES (?,?,?,?,?)''', (ordem_id, i+1, n_parcelas, val, venc))
             elif cond_tipo == 'À vista' and valor_bruto_total > 0:
-                # À vista = 1 parcela para hoje
+                # À vista = 1 parcela na data base do faturamento
+                try:
+                    db_fat_av = prop['data_base_faturamento'] or prop['data_emissao']
+                    data_av = datetime.strptime(db_fat_av[:10], '%Y-%m-%d').strftime('%Y-%m-%d')
+                except:
+                    data_av = datetime.now().strftime('%Y-%m-%d')
                 conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
-                    VALUES (?,?,?,?,?)''', (ordem_id, 1, 1, valor_bruto_total, datetime.now().strftime('%Y-%m-%d')))
+                    VALUES (?,?,?,?,?)''', (ordem_id, 1, 1, valor_bruto_total, data_av))
 
             # Update ordem_gerada reference (status already set to Convertida at transaction start)
             conn.execute(
@@ -1570,15 +1580,25 @@ def converter_proposta(id):
                 if dias_list_oc:
                     n_p = len(dias_list_oc)
                     val_p = round(valor_bruto_oc / n_p, 2)
-                    data_base_oc = datetime.now()
+                    # Use data_base_faturamento from proposta, fallback to data_emissao, then now()
+                    try:
+                        db_fat_oc = prop['data_base_faturamento'] or prop['data_emissao']
+                        data_base_oc = datetime.strptime(db_fat_oc[:10], '%Y-%m-%d')
+                    except:
+                        data_base_oc = datetime.now()
                     for idx, dias in enumerate(dias_list_oc):
                         venc = (data_base_oc + timedelta(days=dias)).strftime('%Y-%m-%d')
                         val = val_p if idx < n_p - 1 else round(valor_bruto_oc - val_p * (n_p - 1), 2)
                         conn.execute('''INSERT INTO oc_parcelas (oc_id, numero_parcela, total_parcelas, valor, data_vencimento)
                             VALUES (?,?,?,?,?)''', (ordem_id, idx+1, n_p, val, venc))
             elif cond_tipo_oc == 'À vista' and valor_bruto_oc > 0:
+                try:
+                    db_fat_oc_av = prop['data_base_faturamento'] or prop['data_emissao']
+                    data_av_oc = datetime.strptime(db_fat_oc_av[:10], '%Y-%m-%d').strftime('%Y-%m-%d')
+                except:
+                    data_av_oc = datetime.now().strftime('%Y-%m-%d')
                 conn.execute('''INSERT INTO oc_parcelas (oc_id, numero_parcela, total_parcelas, valor, data_vencimento)
-                    VALUES (?,?,?,?,?)''', (ordem_id, 1, 1, valor_bruto_oc, datetime.now().strftime('%Y-%m-%d')))
+                    VALUES (?,?,?,?,?)''', (ordem_id, 1, 1, valor_bruto_oc, data_av_oc))
 
             # Update ordem_gerada reference (status already set to Convertida at transaction start)
             conn.execute(
