@@ -220,7 +220,8 @@ def generate_proposta_pdf(proposta_id):
         dias = [int(d) for d in dias_str if d.strip().isdigit()]
         if dias:
             try:
-                data_base = datetime.strptime(prop['data_emissao'][:10], '%Y-%m-%d')
+                db_fat = prop.get('data_base_faturamento') or prop['data_emissao']
+                data_base = datetime.strptime(db_fat[:10], '%Y-%m-%d')
             except:
                 data_base = datetime.now()
             valor_parcela = total_valor / len(dias) if len(dias) > 0 else 0

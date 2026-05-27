@@ -573,8 +573,8 @@ def init_db():
     except sqlite3.OperationalError:
         pass  # column already exists
 
-    # Migration: add juros fields to propostas (calculadora venda a prazo)
-    for col in ['juros_total REAL DEFAULT 0', 'valor_liquido_abmt REAL DEFAULT 0', 'taxa_juros_aplicada REAL DEFAULT 0']:
+    # Migration: add juros fields and data_base_faturamento to propostas
+    for col in ['juros_total REAL DEFAULT 0', 'valor_liquido_abmt REAL DEFAULT 0', 'taxa_juros_aplicada REAL DEFAULT 0', 'data_base_faturamento TEXT']:
         try:
             c.execute(f"ALTER TABLE propostas ADD COLUMN {col}")
         except sqlite3.OperationalError:

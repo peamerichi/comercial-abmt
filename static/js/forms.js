@@ -149,11 +149,19 @@ const FORMS = {
 
             <div class="card">
                 <div class="card-header"><span class="card-title">Pagamento</span></div>
-                <div class="form-group">
-                    <label>Condição</label>
-                    <select name="condicao_tipo" class="form-control" onchange="FORMS.onCondicaoChange(this.value)">
-                        ${this.CONDICOES_RAPIDAS.map(c => `<option value="${c}">${c}</option>`).join('')}
-                    </select>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Condição</label>
+                        <select name="condicao_tipo" class="form-control" onchange="FORMS.onCondicaoChange(this.value)">
+                            ${this.CONDICOES_RAPIDAS.map(c => `<option value="${c}">${c}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Faturamento a partir de</label>
+                        <input type="date" name="data_base_faturamento" class="form-control"
+                            value="${proposta?.data_base_faturamento || new Date().toISOString().slice(0,10)}"
+                            onchange="FORMS.onCondicaoChange(document.querySelector('[name=condicao_tipo]').value)">
+                    </div>
                 </div>
                 <div id="parcelas-preview"></div>
                 <div class="form-group">
@@ -970,6 +978,7 @@ const FORMS = {
             juros_total: this._jurosCalculado?.juros_total || 0,
             valor_liquido_abmt: this._jurosCalculado?.valor_liquido_abmt || 0,
             taxa_juros_aplicada: this._jurosCalculado?.taxa_aplicada || 0,
+            data_base_faturamento: form.querySelector('[name=data_base_faturamento]')?.value || null,
             items
         };
 
@@ -1501,7 +1510,9 @@ const FORMS = {
 
         // Parse days from condition string (e.g., "30/60/90 dias" -> [30, 60, 90])
         const dias = tipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
-        const hoje = new Date();
+        // Data base: usa o campo de faturamento ou hoje
+        const dataBaseInput = document.querySelector('[name=data_base_faturamento]')?.value;
+        const hoje = dataBaseInput ? new Date(dataBaseInput + 'T00:00:00') : new Date();
         const total = this._getPropostaTotal();
         const valorParcelaSemJuros = dias.length > 0 && total > 0 ? total / dias.length : 0;
 

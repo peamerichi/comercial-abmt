@@ -2152,10 +2152,11 @@ const APP = {
             if (dias.length === 0) return '';
             const total = p.valor_bruto || 0;
             const valorParcela = total / dias.length;
-            const dataBase = new Date(p.data_emissao || Date.now());
+            const dbFat = p.data_base_faturamento || p.data_emissao;
+            const dataBase = new Date((dbFat || '').slice(0,10) + 'T00:00:00');
             let html = `<div style="margin:8px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
                 <div style="background:var(--bg-tertiary);padding:8px 12px;font-weight:600;font-size:13px;display:flex;justify-content:space-between">
-                    <span>${LI('calendar',14)} Previsão de Pagamentos</span>
+                    <span>${LI('calendar',14)} Previsão de Pagamentos${p.data_base_faturamento ? ` <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">(a partir de ${this.formatDate(p.data_base_faturamento)})</span>` : ''}</span>
                     <span>${dias.length} parcela${dias.length>1?'s':''}</span>
                 </div>`;
             dias.forEach((d, i) => {

@@ -1013,8 +1013,8 @@ def create_proposta():
             prazo_entrega, garantia, obs_cliente, obs_interna, incluir_dados_bancarios,
             incluir_politica, mostrar_impostos, intermediario_id, valor_bruto_venda,
             valor_liquido_venda, comissao_forma, intermediario_obs,
-            juros_total, valor_liquido_abmt, taxa_juros_aplicada)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            juros_total, valor_liquido_abmt, taxa_juros_aplicada, data_base_faturamento)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (numero, data['tipo'], data.get('cadastro_id'),
              data.get('vendedor_id', user['id']) if user['perfil'] != 'vendedor' else user['id'],
              data.get('uf_destino'), data.get('icms_isento', 0), data.get('proposta_vinculada_id'),
@@ -1028,7 +1028,7 @@ def create_proposta():
              data.get('valor_bruto_venda'), data.get('valor_liquido_venda'),
              data.get('comissao_forma'), data.get('intermediario_obs'),
              data.get('juros_total', 0), data.get('valor_liquido_abmt', 0),
-             data.get('taxa_juros_aplicada', 0)))
+             data.get('taxa_juros_aplicada', 0), data.get('data_base_faturamento')))
 
         prop_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()['id']
 
@@ -1203,7 +1203,7 @@ def update_proposta(id):
                      'garantia','obs_cliente','obs_interna','incluir_dados_bancarios',
                      'incluir_politica','mostrar_impostos','intermediario_id','valor_bruto_venda',
                      'valor_liquido_venda','comissao_forma','intermediario_obs',
-                     'juros_total','valor_liquido_abmt','taxa_juros_aplicada']
+                     'juros_total','valor_liquido_abmt','taxa_juros_aplicada','data_base_faturamento']
         if user['perfil'] == 'vendedor':
             updatable = [f for f in updatable if f not in ('vendedor_id', 'vendedor_responsavel_id')]
         fields = []
@@ -1349,8 +1349,8 @@ def duplicar_proposta(id):
             frete, transportadora, valor_frete, obs_transporte, prazo_entrega, garantia,
             obs_cliente, obs_interna, incluir_dados_bancarios, incluir_politica, mostrar_impostos,
             intermediario_id, valor_bruto_venda, valor_liquido_venda, comissao_forma, intermediario_obs,
-            juros_total, valor_liquido_abmt, taxa_juros_aplicada)
-            VALUES (?,?,?,?,?,?,?,datetime('now','localtime'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            juros_total, valor_liquido_abmt, taxa_juros_aplicada, data_base_faturamento)
+            VALUES (?,?,?,?,?,?,?,datetime('now','localtime'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (numero, prop['tipo'], 'Rascunho', prop['cadastro_id'], user['id'],
              prop['uf_destino'], prop['icms_isento'], prop['validade_dias'],
              prop['condicao_pagamento'], prop['forma_pagamento'], prop['dados_pagamento'],
@@ -1360,7 +1360,8 @@ def duplicar_proposta(id):
              prop['incluir_dados_bancarios'], prop['incluir_politica'], prop['mostrar_impostos'],
              prop['intermediario_id'], prop['valor_bruto_venda'], prop['valor_liquido_venda'],
              prop['comissao_forma'], prop['intermediario_obs'],
-             prop['juros_total'], prop['valor_liquido_abmt'], prop['taxa_juros_aplicada']))
+             prop['juros_total'], prop['valor_liquido_abmt'], prop['taxa_juros_aplicada'],
+             prop['data_base_faturamento']))
 
         new_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()['id']
 
