@@ -2100,6 +2100,22 @@ const APP = {
                 <div class="detail-field"><label>Forma</label><span>${p.forma_pagamento || '-'}</span></div>
                 <div class="detail-field"><label>Condição</label><span>${(() => { try { const cond = JSON.parse(p.condicao_pagamento || '{}'); return cond.tipo === 'Personalizado' && cond.descricao ? cond.descricao : (cond.tipo || '-'); } catch { return '-'; } })()}</span></div>
                 ${this._renderParcelasPreview(p)}
+                ${p.tipo === 'VENDA' && p.juros_total > 0 ? `
+                <div style="margin:8px 0;border:1px solid var(--warning);border-radius:8px;overflow:hidden;background:rgba(255,193,7,0.05)">
+                    <div style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--warning);background:rgba(255,193,7,0.1);display:flex;align-items:center;gap:6px">
+                        ${LI("alert-triangle",14)} Custo Financeiro do Prazo <span style="font-size:10px;font-weight:400;color:var(--text-secondary)">(taxa: ${(p.taxa_juros_aplicada||0).toFixed(1)}% a.m.)</span>
+                    </div>
+                    <div style="padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center">
+                        <div>
+                            <div style="font-size:10px;color:var(--text-secondary)">Juros (${(p.juros_total / p.valor_bruto * 100).toFixed(1)}%)</div>
+                            <div style="font-size:14px;font-weight:700;color:var(--danger)">- R$ ${this.formatMoney(p.juros_total)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:10px;color:var(--text-secondary)">Líquido ABMT</div>
+                            <div style="font-size:14px;font-weight:700;color:var(--success)">R$ ${this.formatMoney(p.valor_liquido_abmt)}</div>
+                        </div>
+                    </div>
+                </div>` : ''}
                 <div class="detail-field"><label>Frete</label><span>${p.frete || '-'} ${p.transportadora ? `(${p.transportadora})` : ''} ${p.valor_frete ? `— R$ ${this.formatMoney(p.valor_frete)}` : ''}</span></div>
                 ${p.prazo_entrega ? `<div class="detail-field"><label>Prazo</label><span>${p.prazo_entrega}</span></div>` : ''}
                 ${p.obs_cliente ? `<div class="detail-field"><label>Obs. cliente</label><span>${sanitize(p.obs_cliente)}</span></div>` : ''}

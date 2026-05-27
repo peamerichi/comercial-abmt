@@ -303,6 +303,15 @@ const FORMS = {
 
         this.updateItemsTotals();
 
+        // Initialize juros from existing proposta (so saving without changing condição preserves values)
+        if (proposta && tipo === 'VENDA') {
+            this._jurosCalculado = {
+                juros_total: proposta.juros_total || 0,
+                valor_liquido_abmt: proposta.valor_liquido_abmt || 0,
+                taxa_aplicada: proposta.taxa_juros_aplicada || this._taxaJurosMensal || 2.8
+            };
+        }
+
         // Auto-fill client if cadastro_id provided (from client page "+ Proposta" button)
         if (params.cadastro_id && !params.id) {
             const cad = await APP.api(`/api/cadastros/${params.cadastro_id}`);
@@ -1435,8 +1444,7 @@ const FORMS = {
             container.innerHTML = `<div class="alert alert-info">${LI("coins",16)} Pagamento à vista${total > 0 ? ` — <strong>R$ ${APP.formatMoney(total)}</strong>` : ''}
                 ${isVenda && total > 0 ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Sem custo financeiro — líquido ABMT: <strong>R$ ${APP.formatMoney(total)}</strong></div>` : ''}
             </div>`;
-            // Store juros data for saving
-            this._jurosCalculado = { juros_total: 0, valor_liquido_abmt: total, taxa_aplicada: 0 };
+            if (isVenda) this._jurosCalculado = { juros_total: 0, valor_liquido_abmt: total, taxa_aplicada: 0 };
             return;
         }
         if (tipo === 'Personalizado') {
@@ -1448,7 +1456,7 @@ const FORMS = {
                         placeholder="Ex: 50% antecipado + 50% na entrega" value="">
                 </div>
             </div>`;
-            this._jurosCalculado = null;
+            if (isVenda) this._jurosCalculado = null;
             APP.api('/api/condicoes-salvas').then(data => {
                 if (data && data.length > 0) {
                     const list = document.getElementById('condicoes-salvas-list');
@@ -1483,8 +1491,10 @@ const FORMS = {
         const jurosTotal = totalComJuros - total;
         const liquidoABMT = total - jurosTotal;
 
-        // Store for saving
-        this._jurosCalculado = { juros_total: Math.round(jurosTotal * 100) / 100, valor_liquido_abmt: Math.round(liquidoABMT * 100) / 100, taxa_aplicada: this._taxaJurosMensal || 2.8 };
+        // Store for saving (only VENDA)
+        if (isVenda) {
+            this._jurosCalculado = { juros_total: Math.round(jurosTotal * 100) / 100, valor_liquido_abmt: Math.round(liquidoABMT * 100) / 100, taxa_aplicada: this._taxaJurosMensal || 2.8 };
+        }
 
         let html = `<div class="parcelas-table" style="margin-top:8px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
             <div style="background:var(--bg-tertiary);padding:8px 12px;font-weight:600;font-size:13px;display:flex;justify-content:space-between">

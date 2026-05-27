@@ -1348,8 +1348,9 @@ def duplicar_proposta(id):
             condicao_pagamento, forma_pagamento, dados_pagamento,
             frete, transportadora, valor_frete, obs_transporte, prazo_entrega, garantia,
             obs_cliente, obs_interna, incluir_dados_bancarios, incluir_politica, mostrar_impostos,
-            intermediario_id, valor_bruto_venda, valor_liquido_venda, comissao_forma, intermediario_obs)
-            VALUES (?,?,?,?,?,?,?,datetime('now','localtime'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            intermediario_id, valor_bruto_venda, valor_liquido_venda, comissao_forma, intermediario_obs,
+            juros_total, valor_liquido_abmt, taxa_juros_aplicada)
+            VALUES (?,?,?,?,?,?,?,datetime('now','localtime'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (numero, prop['tipo'], 'Rascunho', prop['cadastro_id'], user['id'],
              prop['uf_destino'], prop['icms_isento'], prop['validade_dias'],
              prop['condicao_pagamento'], prop['forma_pagamento'], prop['dados_pagamento'],
@@ -1358,7 +1359,8 @@ def duplicar_proposta(id):
              prop['obs_cliente'], prop['obs_interna'],
              prop['incluir_dados_bancarios'], prop['incluir_politica'], prop['mostrar_impostos'],
              prop['intermediario_id'], prop['valor_bruto_venda'], prop['valor_liquido_venda'],
-             prop['comissao_forma'], prop['intermediario_obs']))
+             prop['comissao_forma'], prop['intermediario_obs'],
+             prop['juros_total'], prop['valor_liquido_abmt'], prop['taxa_juros_aplicada']))
 
         new_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()['id']
 
