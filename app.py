@@ -1482,15 +1482,9 @@ def converter_proposta(id):
                     conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
                         VALUES (?,?,?,?,?)''', (ordem_id, p['numero'], p['total'], p['valor'], p['vencimento']))
             elif cond_tipo and cond_tipo != 'À vista' and valor_bruto_total > 0:
-                # Auto-generate parcelas from condition string
-                dias_map = {
-                    '30 dias': [30],
-                    '30/60 dias': [30, 60],
-                    '30/60/90 dias': [30, 60, 90],
-                    '30/60/90/120 dias': [30, 60, 90, 120],
-                    '28/56 dias': [28, 56],
-                }
-                dias_list = dias_map.get(cond_tipo)
+                # Auto-generate parcelas: parse days dynamically from condition string (e.g. "30/60/90 dias" → [30,60,90])
+                dias_parts = cond_tipo.replace(' dias', '').split('/')
+                dias_list = [int(d.strip()) for d in dias_parts if d.strip().isdigit()]
                 if not dias_list and cond.get('dias_custom'):
                     # Handle personalizado
                     try:
@@ -1567,12 +1561,9 @@ def converter_proposta(id):
                     conn.execute('''INSERT INTO oc_parcelas (oc_id, numero_parcela, total_parcelas, valor, data_vencimento)
                         VALUES (?,?,?,?,?)''', (ordem_id, p['numero'], p['total'], p['valor'], p['vencimento']))
             elif cond_tipo_oc and cond_tipo_oc != 'À vista' and valor_bruto_oc > 0:
-                dias_map_oc = {
-                    '30 dias': [30], '30/60 dias': [30, 60],
-                    '30/45/60 dias': [30, 45, 60], '30/60/90 dias': [30, 60, 90],
-                    '30/60/90/120 dias': [30, 60, 90, 120], '28/56 dias': [28, 56],
-                }
-                dias_list_oc = dias_map_oc.get(cond_tipo_oc)
+                # Parse days dynamically from condition string
+                dias_parts_oc = cond_tipo_oc.replace(' dias', '').split('/')
+                dias_list_oc = [int(d.strip()) for d in dias_parts_oc if d.strip().isdigit()]
                 if not dias_list_oc and cond_oc.get('dias_custom'):
                     try:
                         dias_list_oc = [int(d.strip()) for d in str(cond_oc['dias_custom']).split(',') if d.strip()]

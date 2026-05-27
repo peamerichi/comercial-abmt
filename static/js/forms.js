@@ -1613,8 +1613,14 @@ const FORMS = {
         // Recalculate interest at save time using the ACTUAL items total
         // This fixes the bug where juros was calculated on a partial total
         // if the user changed items after selecting payment condition
-        if (tipo !== 'VENDA' || !condicaoTipo || condicaoTipo === 'Personalizado' || condicaoTipo === 'À vista') {
+        if (tipo !== 'VENDA' || !condicaoTipo || condicaoTipo === 'Personalizado') {
             return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
+        }
+        if (condicaoTipo === 'À vista') {
+            const totalAV = this._getPropostaTotal();
+            const descPct = this._descontoAVista || 5;
+            const totalComDesconto = Math.round((totalAV - (totalAV * descPct / 100)) * 100) / 100;
+            return { juros_total: 0, valor_liquido_abmt: totalComDesconto, taxa_juros_aplicada: 0 };
         }
         // Use _getPropostaTotal for accurate total (handles comma decimals, embalagem, etc)
         const total = this._getPropostaTotal();
