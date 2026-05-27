@@ -1616,7 +1616,8 @@ const FORMS = {
         if (tipo !== 'VENDA' || !condicaoTipo || condicaoTipo === 'Personalizado' || condicaoTipo === 'À vista') {
             return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
         }
-        const total = items.reduce((sum, it) => sum + ((parseFloat(it.quantidade) || 0) * (parseFloat(it.valor_unitario) || 0)), 0);
+        // Use _getPropostaTotal for accurate total (handles comma decimals, embalagem, etc)
+        const total = this._getPropostaTotal();
         if (total <= 0) return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
 
         const dias = condicaoTipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
@@ -1638,20 +1639,29 @@ const FORMS = {
     },
 
     _getPropostaTotal() {
-        // Try to get total from items totals display or from item calculations
+        // Calculate total directly from DOM item values (most reliable)
+        let total = 0;
+        document.querySelectorAll('.item-quantidade').forEach((el) => {
+            const i = parseInt(el.dataset.index);
+            const qtd = parseFloat(el.value || 0);
+            const valStr = document.querySelector(`.item-valor[data-index="${i}"]`)?.value || '0';
+            const val = parseFloat(valStr.replace(',', '.')) || 0;
+            total += qtd * val;
+            // Include embalagem cost
+            const embCusto = this.items[i]?.campos_especificos?.embalagem_custo_total || 0;
+            total += embCusto;
+        });
+        if (total > 0) return total;
+        // Fallback: try from items-totals text (extract VALOR TOTAL specifically)
         const totalsEl = document.getElementById('items-totals');
         if (totalsEl) {
-            const match = totalsEl.textContent.replace(/\./g,'').replace(',','.').match(/([\d]+\.?\d*)/);
-            if (match) return parseFloat(match[1]);
+            const text = totalsEl.textContent;
+            const valorMatch = text.match(/VALOR\s*TOTAL[:\s]*R?\$?\s*([\d.]+,\d{2})/i);
+            if (valorMatch) {
+                return parseFloat(valorMatch[1].replace(/\./g, '').replace(',', '.'));
+            }
         }
-        // Fallback: sum item values
-        let total = 0;
-        if (this.items) {
-            this.items.forEach(item => {
-                total += parseFloat(item.valor_total) || 0;
-            });
-        }
-        return total;
+        return 0;
     },
 
     // ===== PROPOSTA RÁPIDA =====
