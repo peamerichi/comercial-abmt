@@ -583,6 +583,7 @@ def init_db():
     # === SEED DEFAULT CONFIGS ===
     defaults = {
         'taxa_juros_venda_prazo': '2.8',
+        'desconto_avista_percentual': '5',
         'pis_percentual': '9.25',
         'margem_minima_alerta': '15',
         'dias_inadimplencia_padrao': '30',

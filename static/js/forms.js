@@ -65,12 +65,13 @@ const FORMS = {
         const tipo = params.tipo || proposta?.tipo || 'VENDA';
         const users = await APP.api('/api/users');
 
-        // Load taxa de juros pra calculadora de venda a prazo
+        // Load taxa de juros e desconto à vista pra calculadora
         if (tipo === 'VENDA') {
             try {
                 const cfg = await APP.api('/api/config');
                 this._taxaJurosMensal = parseFloat(cfg?.taxa_juros_venda_prazo) || 2.8;
-            } catch { this._taxaJurosMensal = 2.8; }
+                this._descontoAVista = parseFloat(cfg?.desconto_avista_percentual) || 5;
+            } catch { this._taxaJurosMensal = 2.8; this._descontoAVista = 5; }
         }
 
         el.innerHTML = `
@@ -1441,10 +1442,37 @@ const FORMS = {
 
         if (tipo === 'À vista') {
             const total = this._getPropostaTotal();
-            container.innerHTML = `<div class="alert alert-info">${LI("coins",16)} Pagamento à vista${total > 0 ? ` — <strong>R$ ${APP.formatMoney(total)}</strong>` : ''}
-                ${isVenda && total > 0 ? `<div style="margin-top:6px;font-size:12px;color:var(--success)">✓ Sem custo financeiro — líquido ABMT: <strong>R$ ${APP.formatMoney(total)}</strong></div>` : ''}
-            </div>`;
-            if (isVenda) this._jurosCalculado = { juros_total: 0, valor_liquido_abmt: total, taxa_aplicada: 0 };
+            const descPct = this._descontoAVista || 5;
+            const descValor = total * descPct / 100;
+            const totalComDesconto = total - descValor;
+            if (isVenda && total > 0) {
+                container.innerHTML = `
+                <div style="margin-top:8px;border:1px solid var(--success);border-radius:8px;overflow:hidden;background:rgba(34,197,94,0.05)">
+                    <div style="padding:10px 12px;font-size:13px;font-weight:600;color:var(--success);background:rgba(34,197,94,0.1);display:flex;align-items:center;gap:6px">
+                        ${LI("coins",16)} Pagamento à Vista
+                    </div>
+                    <div style="padding:10px 12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+                        <div>
+                            <div style="font-size:11px;color:var(--text-secondary)">Valor cheio</div>
+                            <div style="font-size:16px;font-weight:700">R$ ${APP.formatMoney(total)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:var(--text-secondary)">Desconto (${descPct}%)</div>
+                            <div style="font-size:16px;font-weight:700;color:var(--success)">- R$ ${APP.formatMoney(descValor)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;color:var(--text-secondary)">Valor à vista</div>
+                            <div style="font-size:16px;font-weight:700;color:var(--accent)">R$ ${APP.formatMoney(totalComDesconto)}</div>
+                        </div>
+                    </div>
+                    <div style="padding:8px 12px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);text-align:center">
+                        ✓ Sem custo financeiro — líquido ABMT: <strong>R$ ${APP.formatMoney(totalComDesconto)}</strong> · ⚠ Uso interno
+                    </div>
+                </div>`;
+            } else {
+                container.innerHTML = `<div class="alert alert-info">${LI("coins",16)} Pagamento à vista${total > 0 ? ` — <strong>R$ ${APP.formatMoney(total)}</strong>` : ''}</div>`;
+            }
+            if (isVenda) this._jurosCalculado = { juros_total: 0, valor_liquido_abmt: totalComDesconto, taxa_aplicada: 0, desconto_avista: descPct };
             return;
         }
         if (tipo === 'Personalizado') {
