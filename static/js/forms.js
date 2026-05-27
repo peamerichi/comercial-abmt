@@ -1616,7 +1616,7 @@ const FORMS = {
         if (tipo !== 'VENDA' || !condicaoTipo || condicaoTipo === 'Personalizado' || condicaoTipo === 'À vista') {
             return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
         }
-        const total = items.reduce((sum, it) => sum + (parseFloat(it.valor_total) || 0), 0);
+        const total = items.reduce((sum, it) => sum + ((parseFloat(it.quantidade) || 0) * (parseFloat(it.valor_unitario) || 0)), 0);
         if (total <= 0) return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
 
         const dias = condicaoTipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
