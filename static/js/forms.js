@@ -974,10 +974,8 @@ const FORMS = {
             valor_liquido_venda: parseFloat(form.querySelector('[name=valor_liquido_venda]')?.value) || null,
             comissao_forma: form.querySelector('[name=comissao_forma]')?.value || null,
             intermediario_obs: form.querySelector('[name=intermediario_obs]')?.value || '',
-            // Juros calculadora venda a prazo
-            juros_total: this._jurosCalculado?.juros_total || 0,
-            valor_liquido_abmt: this._jurosCalculado?.valor_liquido_abmt || 0,
-            taxa_juros_aplicada: this._jurosCalculado?.taxa_aplicada || 0,
+            // Juros calculadora venda a prazo — recalcular na hora de salvar com total real
+            ...this._recalcJurosParaSalvar(tipo, condicaoTipo, items),
             data_base_faturamento: form.querySelector('[name=data_base_faturamento]')?.value || null,
             items
         };
@@ -1609,6 +1607,34 @@ const FORMS = {
         }
 
         container.innerHTML = html;
+    },
+
+    _recalcJurosParaSalvar(tipo, condicaoTipo, items) {
+        // Recalculate interest at save time using the ACTUAL items total
+        // This fixes the bug where juros was calculated on a partial total
+        // if the user changed items after selecting payment condition
+        if (tipo !== 'VENDA' || !condicaoTipo || condicaoTipo === 'Personalizado' || condicaoTipo === 'À vista') {
+            return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
+        }
+        const total = items.reduce((sum, it) => sum + (parseFloat(it.valor_total) || 0), 0);
+        if (total <= 0) return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
+
+        const dias = condicaoTipo.replace(' dias','').split('/').map(Number).filter(n => !isNaN(n));
+        if (dias.length === 0) return { juros_total: 0, valor_liquido_abmt: 0, taxa_juros_aplicada: 0 };
+
+        const taxa = (this._taxaJurosMensal || 2.8) / 100;
+        const valorParcela = total / dias.length;
+        let totalComJuros = 0;
+        dias.forEach(d => {
+            totalComJuros += valorParcela * Math.pow(1 + taxa, d / 30);
+        });
+        const jurosTotal = Math.round((totalComJuros - total) * 100) / 100;
+        const liquidoABMT = Math.round((total - jurosTotal) * 100) / 100;
+        return {
+            juros_total: jurosTotal,
+            valor_liquido_abmt: liquidoABMT,
+            taxa_juros_aplicada: this._taxaJurosMensal || 2.8
+        };
     },
 
     _getPropostaTotal() {
