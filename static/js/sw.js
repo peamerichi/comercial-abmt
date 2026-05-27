@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abmt-comercial-v65';
+const CACHE_NAME = 'abmt-comercial-v66';
 const ASSETS = [
     '/',
     '/static/css/style.css',
@@ -37,13 +37,10 @@ self.addEventListener('fetch', (e) => {
         })));
         return;
     }
-    // Static assets: stale-while-revalidate (serve from cache instantly, update in background)
-    e.respondWith(caches.match(e.request).then(cached => {
-        const networkFetch = fetch(e.request).then(res => {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-            return res;
-        }).catch(() => cached);
-        return cached || networkFetch;
-    }));
+    // Local static assets: NETWORK FIRST (always get latest after deploy), fallback to cache
+    e.respondWith(fetch(e.request).then(res => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        return res;
+    }).catch(() => caches.match(e.request)));
 });

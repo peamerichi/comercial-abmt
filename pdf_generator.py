@@ -230,17 +230,20 @@ def generate_proposta_pdf(proposta_id):
                 data_base = datetime.strptime(db_fat[:10], '%Y-%m-%d')
             except:
                 data_base = datetime.now()
-            valor_parcela = total_valor / len(dias) if len(dias) > 0 else 0
+            n_parcelas = len(dias)
+            valor_parcela = round(total_valor / n_parcelas, 2) if n_parcelas > 0 else 0
 
             elements.append(Spacer(1, 3*mm))
             parcela_data = [['Parcela', 'Vencimento', 'Dias', 'Valor']]
             for i, d in enumerate(dias):
                 dt_venc = data_base + timedelta(days=d)
+                # Last parcela adjusts for rounding so sum matches total exactly
+                val = valor_parcela if i < n_parcelas - 1 else round(total_valor - valor_parcela * (n_parcelas - 1), 2)
                 parcela_data.append([
-                    f"{i+1}/{len(dias)}",
+                    f"{i+1}/{n_parcelas}",
                     dt_venc.strftime('%d/%m/%Y'),
                     f"{d} dias",
-                    f"R$ {format_money(valor_parcela)}"
+                    f"R$ {format_money(val)}"
                 ])
             parcela_data.append(['', '', Paragraph('<b>Total</b>', styles['Normal']), Paragraph(f"<b>R$ {format_money(total_valor)}</b>", styles['Normal'])])
 

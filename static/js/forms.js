@@ -65,6 +65,18 @@ const FORMS = {
         const tipo = params.tipo || proposta?.tipo || 'VENDA';
         const users = await APP.api('/api/users');
 
+        // Parse saved condition for edit mode
+        let savedCondTipo = '';
+        let savedCondDesc = '';
+        if (proposta?.condicao_pagamento) {
+            try {
+                const cond = JSON.parse(proposta.condicao_pagamento);
+                savedCondTipo = cond.tipo || '';
+                savedCondDesc = cond.descricao || '';
+            } catch { savedCondTipo = ''; }
+        }
+        this._savedCondDesc = savedCondDesc;
+
         // Load taxa de juros e desconto à vista pra calculadora
         if (tipo === 'VENDA') {
             try {
@@ -153,7 +165,7 @@ const FORMS = {
                     <div class="form-group">
                         <label>Condição</label>
                         <select name="condicao_tipo" class="form-control" onchange="FORMS.onCondicaoChange(this.value)">
-                            ${this.CONDICOES_RAPIDAS.map(c => `<option value="${c}">${c}</option>`).join('')}
+                            ${this.CONDICOES_RAPIDAS.map(c => `<option value="${c}" ${savedCondTipo===c?'selected':''}>${c}</option>`).join('')}
                         </select>
                     </div>
                     <div class="form-group">
@@ -808,7 +820,7 @@ const FORMS = {
         container.innerHTML = html;
         // Update parcelas preview with new total
         const condSelect = document.querySelector('[name="condicao_tipo"]');
-        if (condSelect && condSelect.value && condSelect.value !== 'Personalizado') {
+        if (condSelect && condSelect.value) {
             this.onCondicaoChange(condSelect.value);
         }
     },
@@ -1488,7 +1500,7 @@ const FORMS = {
                 <div class="form-group" style="margin-bottom:0">
                     <label>Descreva a condição personalizada</label>
                     <input type="text" name="condicao_personalizada" class="form-control"
-                        placeholder="Ex: 50% antecipado + 50% na entrega" value="">
+                        placeholder="Ex: 50% antecipado + 50% na entrega" value="${this._savedCondDesc || ''}">
                 </div>
             </div>`;
             if (isVenda) this._jurosCalculado = null;
