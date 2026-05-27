@@ -814,6 +814,8 @@ const FORMS = {
             totalEmbalagem += embCusto;
         });
         totalValor += totalEmbalagem;
+        // Cache the computed total — this is the single source of truth for _getPropostaTotal
+        this._cachedTotal = totalValor;
         let html = `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px"><span>PESO TOTAL: ${APP.formatNumber(totalPeso)} kg</span>`;
         if (totalEmbalagem > 0) html += `<span>EMBALAGEM: R$ ${APP.formatMoney(totalEmbalagem)}</span>`;
         html += `<span>VALOR TOTAL: R$ ${APP.formatMoney(totalValor)}</span></div>`;
@@ -1657,20 +1659,36 @@ const FORMS = {
     },
 
     _getPropostaTotal() {
-        // Calculate total directly from DOM item values (most reliable)
-        let total = 0;
+        // 1. Use cached total from updateItemsTotals (most reliable — same value shown in VALOR TOTAL)
+        if (this._cachedTotal > 0) return this._cachedTotal;
+
+        // 2. Calculate from DOM inputs
+        let domTotal = 0;
         document.querySelectorAll('.item-quantidade').forEach((el) => {
             const i = parseInt(el.dataset.index);
             const qtd = parseFloat(el.value || 0);
             const valStr = document.querySelector(`.item-valor[data-index="${i}"]`)?.value || '0';
             const val = parseFloat(valStr.replace(',', '.')) || 0;
-            total += qtd * val;
-            // Include embalagem cost
+            domTotal += qtd * val;
             const embCusto = this.items[i]?.campos_especificos?.embalagem_custo_total || 0;
-            total += embCusto;
+            domTotal += embCusto;
         });
-        if (total > 0) return total;
-        // Fallback: try from items-totals text (extract VALOR TOTAL specifically)
+        if (domTotal > 0) return domTotal;
+
+        // 3. Calculate from this.items array (pre-loaded data from API)
+        if (this.items?.length > 0) {
+            const itemsTotal = this.items.reduce((sum, it) => {
+                const vt = parseFloat(it.valor_total) || 0;
+                if (vt > 0) return sum + vt;
+                const q = parseFloat(it.quantidade) || 0;
+                const v = parseFloat(it.valor_unitario) || 0;
+                const emb = it.campos_especificos?.embalagem_custo_total || 0;
+                return sum + (q * v) + emb;
+            }, 0);
+            if (itemsTotal > 0) return itemsTotal;
+        }
+
+        // 4. Last resort: parse from VALOR TOTAL text display
         const totalsEl = document.getElementById('items-totals');
         if (totalsEl) {
             const text = totalsEl.textContent;
