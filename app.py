@@ -890,6 +890,13 @@ def update_cadastro(id):
     user = get_current_user()
     conn = get_db()
     try:
+        # Ownership check: vendedor só edita cadastros sob sua responsabilidade
+        cad_row = conn.execute("SELECT vendedor_responsavel_id FROM cadastros WHERE id=?", (id,)).fetchone()
+        if not cad_row:
+            return jsonify({'error': 'Cadastro não encontrado'}), 404
+        if user['perfil'] == 'vendedor' and cad_row['vendedor_responsavel_id'] and cad_row['vendedor_responsavel_id'] != user['id']:
+            return jsonify({'error': 'Sem permissão para editar cliente de outro vendedor'}), 403
+
         fields = []
         params = []
         updatable = ['razao_social','nome_fantasia','inscricao_estadual','endereco_cep','endereco_rua',
@@ -1202,11 +1209,14 @@ def update_proposta(id):
     user = get_current_user()
     conn = get_db()
     try:
-        prop = conn.execute("SELECT status, data_emissao FROM propostas WHERE id=?", (id,)).fetchone()
+        prop = conn.execute("SELECT status, data_emissao, vendedor_id FROM propostas WHERE id=?", (id,)).fetchone()
         if not prop:
             return jsonify({'error': 'Não encontrada'}), 404
         if prop['status'] in ('Convertida', 'Perdida'):
             return jsonify({'error': f'Proposta {prop["status"]} não pode ser editada'}), 400
+        # Ownership check: vendedor só edita suas próprias propostas
+        if user['perfil'] == 'vendedor' and prop['vendedor_id'] != user['id']:
+            return jsonify({'error': 'Sem permissão para editar proposta de outro vendedor'}), 403
 
         # Update fields — vendedor não pode trocar vendedor_id nem cadastro_id de outro
         updatable = ['cadastro_id','vendedor_id','uf_destino','icms_isento','proposta_vinculada_id',
@@ -1305,6 +1315,9 @@ def update_proposta_status(id):
         prop = conn.execute("SELECT * FROM propostas WHERE id=?", (id,)).fetchone()
         if not prop:
             return jsonify({'error': 'Não encontrada'}), 404
+        # Ownership check: vendedor só muda status das suas próprias propostas
+        if user['perfil'] == 'vendedor' and prop['vendedor_id'] != user['id']:
+            return jsonify({'error': 'Sem permissão para alterar proposta de outro vendedor'}), 403
 
         # Validate transitions
         valid_transitions = {
@@ -3789,6 +3802,35 @@ def serve_upload(filename):
     # Block path traversal — only serve files from the uploads root, not subdirs like /deleted/
     if '/' in filename or '\\' in filename or '..' in filename:
         return jsonify({'error': 'Acesso negado'}), 403
+
+    # Ownership check: vendedor só vê anexos de entidades em que ele está envolvido
+    user = get_current_user()
+    if user['perfil'] == 'vendedor':
+        conn = get_db()
+        anexo = conn.execute(
+            "SELECT entidade_tipo, entidade_id, uploaded_by FROM anexos WHERE caminho=? AND deletado=0",
+            (filename,)
+        ).fetchone()
+        if not anexo:
+            return jsonify({'error': 'Arquivo não encontrado'}), 404
+
+        # Vendedor sempre vê anexos que ele mesmo subiu
+        if anexo['uploaded_by'] != user['id']:
+            allowed = False
+            tipo = anexo['entidade_tipo']
+            eid = anexo['entidade_id']
+            if tipo == 'proposta':
+                row = conn.execute("SELECT vendedor_id FROM propostas WHERE id=?", (eid,)).fetchone()
+                allowed = row and row['vendedor_id'] == user['id']
+            elif tipo == 'OV':
+                row = conn.execute("SELECT vendedor_id FROM ordens_venda WHERE id=?", (eid,)).fetchone()
+                allowed = row and row['vendedor_id'] == user['id']
+            elif tipo == 'OC':
+                row = conn.execute("SELECT comprador_id FROM ordens_compra WHERE id=?", (eid,)).fetchone()
+                allowed = row and row['comprador_id'] == user['id']
+            if not allowed:
+                return jsonify({'error': 'Sem permissão para acessar este anexo'}), 403
+
     return send_from_directory(UPLOAD_DIR, filename)
 
 
