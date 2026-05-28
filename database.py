@@ -594,6 +594,24 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+    # Migration: copy juros, intermediário and comissão fields to ordens_venda
+    # These were being lost when converting proposta → OV
+    for col in [
+        'juros_total REAL DEFAULT 0',
+        'valor_liquido_abmt REAL DEFAULT 0',
+        'taxa_juros_aplicada REAL DEFAULT 0',
+        'data_base_faturamento TEXT',
+        'intermediario_id INTEGER',
+        'valor_bruto_venda REAL',
+        'valor_liquido_venda REAL',
+        'comissao_forma TEXT',
+        'intermediario_obs TEXT',
+    ]:
+        try:
+            c.execute(f"ALTER TABLE ordens_venda ADD COLUMN {col}")
+        except sqlite3.OperationalError:
+            pass
+
     # === SEED DEFAULT CONFIGS ===
     defaults = {
         'taxa_juros_venda_prazo': '2.8',

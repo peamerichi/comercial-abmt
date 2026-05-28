@@ -1448,16 +1448,59 @@ def converter_proposta(id):
         items = conn.execute("SELECT * FROM proposta_items WHERE proposta_id=? ORDER BY ordem", (id,)).fetchall()
         if prop['tipo'] == 'VENDA':
             numero = get_next_number('OV', conn)
+            # Preserve juros, intermediário and comissão fields from proposta
+            # Use try/except for new columns to keep compat with older DBs
+            try:
+                juros_total = prop['juros_total'] or 0
+            except (IndexError, KeyError):
+                juros_total = 0
+            try:
+                valor_liquido_abmt = prop['valor_liquido_abmt'] or 0
+            except (IndexError, KeyError):
+                valor_liquido_abmt = 0
+            try:
+                taxa_juros_aplicada = prop['taxa_juros_aplicada'] or 0
+            except (IndexError, KeyError):
+                taxa_juros_aplicada = 0
+            try:
+                data_base_faturamento = prop['data_base_faturamento']
+            except (IndexError, KeyError):
+                data_base_faturamento = None
+            try:
+                intermediario_id = prop['intermediario_id']
+            except (IndexError, KeyError):
+                intermediario_id = None
+            try:
+                valor_bruto_venda = prop['valor_bruto_venda']
+            except (IndexError, KeyError):
+                valor_bruto_venda = None
+            try:
+                valor_liquido_venda = prop['valor_liquido_venda']
+            except (IndexError, KeyError):
+                valor_liquido_venda = None
+            try:
+                comissao_forma = prop['comissao_forma']
+            except (IndexError, KeyError):
+                comissao_forma = None
+            try:
+                intermediario_obs = prop['intermediario_obs']
+            except (IndexError, KeyError):
+                intermediario_obs = None
+
             conn.execute('''INSERT INTO ordens_venda (numero, proposta_id, cadastro_id, vendedor_id,
                 uf_destino, icms_isento, data_emissao, data_entrega_prevista, condicao_pagamento,
                 forma_pagamento, dados_pagamento, frete, transportadora, valor_frete, obs_transporte,
-                observacoes, obs_interna)
-                VALUES (?,?,?,?,?,?,datetime('now','localtime'),?,?,?,?,?,?,?,?,?,?)''',
+                observacoes, obs_interna,
+                juros_total, valor_liquido_abmt, taxa_juros_aplicada, data_base_faturamento,
+                intermediario_id, valor_bruto_venda, valor_liquido_venda, comissao_forma, intermediario_obs)
+                VALUES (?,?,?,?,?,?,datetime('now','localtime'),?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (numero, id, prop['cadastro_id'], prop['vendedor_id'], prop['uf_destino'],
                  prop['icms_isento'], None, prop['condicao_pagamento'],
                  prop['forma_pagamento'], prop['dados_pagamento'], prop['frete'],
                  prop['transportadora'], prop['valor_frete'], prop['obs_transporte'],
-                 prop['obs_cliente'], prop['obs_interna']))
+                 prop['obs_cliente'], prop['obs_interna'],
+                 juros_total, valor_liquido_abmt, taxa_juros_aplicada, data_base_faturamento,
+                 intermediario_id, valor_bruto_venda, valor_liquido_venda, comissao_forma, intermediario_obs))
             ordem_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()['id']
 
             # Copy items with commission (usa calcular_comissao_item)
