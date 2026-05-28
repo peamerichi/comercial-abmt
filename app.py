@@ -77,16 +77,26 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = not app.debug  # Secure em produção
 
-# === CACHE HEADERS FOR STATIC FILES ===
+# === CACHE HEADERS FOR STATIC FILES + SECURITY HEADERS ===
 @app.after_request
 def add_cache_headers(response):
-    """Add cache headers to reduce repeat downloads."""
+    """Add cache headers and security headers."""
     if request.path.startswith('/static/'):
         # Cache static assets for 1 hour, revalidate after
         response.headers['Cache-Control'] = 'public, max-age=3600, stale-while-revalidate=86400'
     elif request.path.startswith('/api/'):
         # API responses: no cache
         response.headers['Cache-Control'] = 'no-store'
+
+    # Security headers — apply to all responses
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    # HSTS only in production (HTTPS)
+    if not app.debug:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+
     # Trigger cloud backup after successful write operations (POST/PUT/PATCH/DELETE)
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and request.path.startswith('/api/') and response.status_code < 400:
         _trigger_cloud_backup()
@@ -4179,6 +4189,21 @@ def _mes_fechado(conn, data_emissao_str):
         return bool(row)
     except Exception:
         return False
+
+
+def _mes_range(mes, ano):
+    """Retorna (data_inicio, data_fim_exclusive) em ISO format para queries que usam índice.
+    Trocar strftime('%m',data)=? AND strftime('%Y',data)=? por data >= ? AND data < ?
+    permite SQLite usar o índice em data_emissao (B-tree).
+    """
+    mes = int(mes)
+    ano = int(ano)
+    inicio = f"{ano:04d}-{mes:02d}-01"
+    if mes == 12:
+        fim = f"{ano + 1:04d}-01-01"
+    else:
+        fim = f"{ano:04d}-{mes + 1:02d}-01"
+    return inicio, fim
 
 
 def gerar_parcelas_para_ov(condicao_pagamento_json, valor_bruto_total, data_base, taxa_juros_mensal=2.8):

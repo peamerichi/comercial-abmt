@@ -810,7 +810,11 @@ const APP = {
                 document.head.appendChild(s);
                 await new Promise(r => s.onload = r);
             }
-            new Chart(canvas, {
+            // Destroy previous instance to avoid memory leak
+            if (this._chartInstances['chart-cashflow']) {
+                this._chartInstances['chart-cashflow'].destroy();
+            }
+            this._chartInstances['chart-cashflow'] = new Chart(canvas, {
                 type: 'bar',
                 data: {
                     labels: cf.semanas.map(s => s.label),
