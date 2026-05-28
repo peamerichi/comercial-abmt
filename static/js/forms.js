@@ -716,7 +716,16 @@ const FORMS = {
         const qtd = parseFloat(document.querySelector(`.item-quantidade[data-index="${index}"]`)?.value || 0);
         const val = parseFloat(document.querySelector(`.item-valor[data-index="${index}"]`)?.value || 0);
         const unidade = document.querySelector(`.item-unidade[data-index="${index}"]`)?.value || 'UNIDADE';
-        const totalProduto = qtd * val;
+
+        // When unit is KVA, val = price per kVA → multiply by potência to get price per unit
+        let totalProduto;
+        const potencia = parseFloat(this.items[index]?.campos_especificos?.potencia || 0);
+        if (unidade === 'KVA' && potencia > 0) {
+            // qtd = number of transformers, val = R$/kVA, potência = kVA per transformer
+            totalProduto = qtd * potencia * val;
+        } else {
+            totalProduto = qtd * val;
+        }
 
         // Recalculate embalagem if Óleo Isolante
         const categoria = document.querySelector(`.item-categoria[data-index="${index}"]`)?.value;
@@ -731,7 +740,14 @@ const FORMS = {
             if (total > 0) {
                 const unidadeShort = { KVA: 'kVA', KG: 'kg', LITRO: 'L', UNIDADE: 'un' }[unidade] || 'un';
                 calcEl.style.display = 'flex';
-                let html = `<div><span class="calc-label">${qtd} ${unidadeShort} × R$ ${APP.formatMoney(val)}/${unidadeShort} = R$ ${APP.formatMoney(totalProduto)}</span>`;
+                let html;
+                if (unidade === 'KVA' && potencia > 0) {
+                    const precoUnidade = potencia * val;
+                    html = `<div><span class="calc-label">${qtd} un × ${potencia} kVA × R$ ${APP.formatMoney(val)}/kVA = R$ ${APP.formatMoney(totalProduto)}</span>`;
+                    html += `<br><span class="calc-label" style="color:var(--text-muted)">Preço/un: R$ ${APP.formatMoney(precoUnidade)}</span>`;
+                } else {
+                    html = `<div><span class="calc-label">${qtd} ${unidadeShort} × R$ ${APP.formatMoney(val)}/${unidadeShort} = R$ ${APP.formatMoney(totalProduto)}</span>`;
+                }
                 if (embCusto > 0) {
                     const embQtd = this.items[index].campos_especificos.embalagem_qtd;
                     const embTipo = this.items[index].campos_especificos.embalagem_tipo;
@@ -806,7 +822,13 @@ const FORMS = {
             const val = parseFloat(document.querySelector(`.item-valor[data-index="${i}"]`)?.value || 0);
             const unidade = document.querySelector(`.item-unidade[data-index="${i}"]`)?.value;
             const peso = parseFloat(document.querySelector(`.item-peso[data-index="${i}"]`)?.value || 0);
-            totalValor += qtd * val;
+            // When unit is KVA, val = price per kVA → multiply by potência
+            const potencia = parseFloat(this.items[i]?.campos_especificos?.potencia || 0);
+            if (unidade === 'KVA' && potencia > 0) {
+                totalValor += qtd * potencia * val;
+            } else {
+                totalValor += qtd * val;
+            }
             if (unidade === 'KG') totalPeso += qtd;
             else if (peso) totalPeso += peso * qtd;
             // Add embalagem cost
@@ -1669,7 +1691,14 @@ const FORMS = {
             const qtd = parseFloat(el.value || 0);
             const valStr = document.querySelector(`.item-valor[data-index="${i}"]`)?.value || '0';
             const val = parseFloat(valStr.replace(',', '.')) || 0;
-            domTotal += qtd * val;
+            // When unit is KVA, val = price per kVA → multiply by potência
+            const unidade = document.querySelector(`.item-unidade[data-index="${i}"]`)?.value;
+            const potencia = parseFloat(this.items[i]?.campos_especificos?.potencia || 0);
+            if (unidade === 'KVA' && potencia > 0) {
+                domTotal += qtd * potencia * val;
+            } else {
+                domTotal += qtd * val;
+            }
             const embCusto = this.items[i]?.campos_especificos?.embalagem_custo_total || 0;
             domTotal += embCusto;
         });

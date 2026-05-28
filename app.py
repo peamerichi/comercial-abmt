@@ -1079,7 +1079,16 @@ def _insert_proposta_item(conn, proposta_id, ordem, item):
     # Calculate valor_total
     desconto = float(item.get('desconto_valor', 0))
     desc_tipo = item.get('desconto_tipo')
-    valor_bruto = qtd * val_unit
+    # When unit is KVA, val_unit = price per kVA → multiply by potência to get real value
+    campos = item.get('campos_especificos', {})
+    if unidade == 'KVA':
+        potencia = float(campos.get('potencia', 0))
+        if potencia > 0:
+            valor_bruto = qtd * potencia * val_unit
+        else:
+            valor_bruto = qtd * val_unit
+    else:
+        valor_bruto = qtd * val_unit
     if desc_tipo == 'percentual':
         valor_total = valor_bruto * (1 - desconto / 100)
     elif desc_tipo == 'valor':
@@ -1088,7 +1097,6 @@ def _insert_proposta_item(conn, proposta_id, ordem, item):
         valor_total = valor_bruto
 
     # Add embalagem cost for Óleo Isolante
-    campos = item.get('campos_especificos', {})
     embalagem_custo = float(campos.get('embalagem_custo_total', 0))
     if embalagem_custo > 0:
         valor_total += embalagem_custo
@@ -1693,11 +1701,16 @@ def create_ov():
             peso_total = qtd if unidade == 'KG' else (float(peso_unit) * qtd if peso_unit else None)
             desconto = float(item.get('desconto_valor', 0))
             desc_tipo = item.get('desconto_tipo')
-            valor_bruto = qtd * val_unit
+            # When unit is KVA, val_unit = price per kVA → multiply by potência
+            campos_ov = item.get('campos_especificos', {})
+            if unidade == 'KVA':
+                pot = float(campos_ov.get('potencia', 0))
+                valor_bruto = qtd * pot * val_unit if pot > 0 else qtd * val_unit
+            else:
+                valor_bruto = qtd * val_unit
             valor_total = valor_bruto * (1 - desconto/100) if desc_tipo == 'percentual' else (valor_bruto - desconto if desc_tipo == 'valor' else valor_bruto)
 
             # Add embalagem cost for Óleo Isolante
-            campos_ov = item.get('campos_especificos', {})
             emb_custo_ov = float(campos_ov.get('embalagem_custo_total', 0))
             if emb_custo_ov > 0:
                 valor_total += emb_custo_ov
@@ -1999,11 +2012,16 @@ def create_oc():
             peso_total = qtd if unidade == 'KG' else (float(peso_unit) * qtd if peso_unit else None)
             desconto = float(item.get('desconto_valor', 0))
             desc_tipo = item.get('desconto_tipo')
-            valor_bruto = qtd * val_unit
+            # When unit is KVA, val_unit = price per kVA → multiply by potência
+            campos_oc = item.get('campos_especificos', {})
+            if unidade == 'KVA':
+                pot = float(campos_oc.get('potencia', 0))
+                valor_bruto = qtd * pot * val_unit if pot > 0 else qtd * val_unit
+            else:
+                valor_bruto = qtd * val_unit
             valor_total = valor_bruto * (1 - desconto/100) if desc_tipo == 'percentual' else (valor_bruto - desconto if desc_tipo == 'valor' else valor_bruto)
 
             # Add embalagem cost for Óleo Isolante
-            campos_oc = item.get('campos_especificos', {})
             emb_custo_oc = float(campos_oc.get('embalagem_custo_total', 0))
             if emb_custo_oc > 0:
                 valor_total += emb_custo_oc
