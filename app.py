@@ -1873,6 +1873,10 @@ def update_ov(id):
     if user['perfil'] == 'vendedor' and ov['vendedor_id'] != user['id']:
         conn.close()
         return jsonify({'error': 'Sem permissão'}), 403
+    # Lock: mês fechado não pode ter OV editada
+    if _mes_fechado(conn, ov['data_emissao']):
+        conn.close()
+        return jsonify({'error': 'OV pertence a mês fechado — abra o fechamento antes de editar'}), 400
 
     try:
         fields = []
@@ -1914,6 +1918,10 @@ def update_ov_status(id):
     if not ov:
         conn.close()
         return jsonify({'error': 'OV não encontrada'}), 404
+    # Lock: mês fechado não pode ter status alterado
+    if _mes_fechado(conn, ov['data_emissao']):
+        conn.close()
+        return jsonify({'error': 'OV pertence a mês fechado — abra o fechamento antes de alterar status'}), 400
 
     new_status = data.get('status')
     if not new_status:
@@ -4153,6 +4161,24 @@ def assistente():
 def _get_configs(conn):
     rows = conn.execute("SELECT chave, valor FROM configuracoes").fetchall()
     return {r['chave']: r['valor'] for r in rows}
+
+
+def _mes_fechado(conn, data_emissao_str):
+    """Verifica se o mês/ano de uma OV/OC está fechado.
+    Retorna True se fechado, False caso contrário.
+    Aceita data_emissao como string ISO ('YYYY-MM-DD ...').
+    """
+    if not data_emissao_str:
+        return False
+    try:
+        dt = datetime.strptime(data_emissao_str[:10], '%Y-%m-%d')
+        row = conn.execute(
+            "SELECT status FROM fechamentos WHERE mes=? AND ano=? AND status='Fechado' LIMIT 1",
+            (dt.month, dt.year)
+        ).fetchone()
+        return bool(row)
+    except Exception:
+        return False
 
 
 def gerar_parcelas_para_ov(condicao_pagamento_json, valor_bruto_total, data_base, taxa_juros_mensal=2.8):
