@@ -4640,6 +4640,25 @@ def dashboard_advanced():
         "SELECT COUNT(*) as c FROM notificacoes WHERE user_id=? AND lida=0",
         (user['id'],)).fetchone()['c']
 
+    # Custo financeiro do prazo — juros das propostas de venda do mês (gestor/diretor only)
+    custo_financeiro = {}
+    if is_gestor:
+        juros_row = conn.execute("""
+            SELECT COALESCE(SUM(p.juros_total), 0) as juros_total,
+                   COALESCE(SUM(p.valor_liquido_abmt), 0) as liquido_total,
+                   COUNT(*) as count_propostas
+            FROM propostas p
+            WHERE p.tipo = 'VENDA' AND p.juros_total > 0
+            AND strftime('%m', p.data_emissao) = ? AND strftime('%Y', p.data_emissao) = ?
+            AND p.status NOT IN ('Perdida', 'Expirada')
+        """, [mes_str, ano_str]).fetchone()
+        custo_financeiro = {
+            'juros_total_mes': juros_row['juros_total'],
+            'liquido_total_mes': juros_row['liquido_total'],
+            'count_propostas': juros_row['count_propostas'],
+            'percentual_sobre_vendas': round(juros_row['juros_total'] / vendas_mes['total'] * 100, 2) if vendas_mes['total'] > 0 else 0,
+        }
+
     conn.close()
 
     return jsonify({
@@ -4691,6 +4710,7 @@ def dashboard_advanced():
         'inadimplencia_total': inadimplencia_total,
         'margem_bruta': vendas_mes['total'] - compras_mes['total'],
         'margem_pct': round((vendas_mes['total'] - compras_mes['total']) / vendas_mes['total'] * 100, 1) if vendas_mes['total'] > 0 else 0,
+        'custo_financeiro': custo_financeiro,
     })
 
 

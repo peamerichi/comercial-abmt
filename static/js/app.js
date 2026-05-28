@@ -1032,7 +1032,7 @@ const APP = {
         </div>
 
         <!-- SECOND ROW KPIs -->
-        <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="kpi-grid" style="grid-template-columns: repeat(${d.is_gestor ? 4 : 3}, 1fr);">
             <div class="kpi-card kpi-orange">
                 <div class="kpi-label">Comissão Estimada</div>
                 <div class="kpi-value orange">R$ ${this.formatMoney(v.comissao_mes)}</div>
@@ -1048,6 +1048,12 @@ const APP = {
                 <div class="kpi-label">Pipeline Mês</div>
                 <div class="kpi-value">R$ ${this.formatMoney(v.pipeline_mes || 0)}</div>
                 <div class="kpi-sub">propostas abertas</div>
+            </div>
+            <div class="kpi-card" style="border-color:var(--danger);border-width:1px;border-style:solid">
+                <div class="kpi-label" style="color:var(--danger)">Custo Financeiro do Prazo</div>
+                <div class="kpi-value" style="color:var(--danger)">R$ ${this.formatMoney(d.custo_financeiro?.juros_total_mes || 0)}</div>
+                <div class="kpi-sub">${d.custo_financeiro?.percentual_sobre_vendas || 0}% sobre vendas · ${d.custo_financeiro?.count_propostas || 0} propostas</div>
+                ${d.custo_financeiro?.liquido_total_mes > 0 ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px;border-top:1px solid var(--border);padding-top:4px">Líquido ABMT: R$ ${this.formatMoney(d.custo_financeiro.liquido_total_mes)}</div>` : ''}
             </div>` : `
             <div class="kpi-card kpi-green" onclick="APP.navigate('followups')">
                 <div class="kpi-label">Follow-ups Hoje</div>
