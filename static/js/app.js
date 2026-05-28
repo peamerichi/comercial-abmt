@@ -4362,6 +4362,7 @@ const APP = {
             <div class="tab ${this._configTab==='impostos'?'active':''}" onclick="APP.switchConfigTab('impostos',event)">${LI("coins",16)} Impostos</div>
             <div class="tab ${this._configTab==='comercial'?'active':''}" onclick="APP.switchConfigTab('comercial',event)">${LI("clipboard",16)} Comercial</div>
             <div class="tab ${this._configTab==='equipe'?'active':''}" onclick="APP.switchConfigTab('equipe',event)">${LI("users",16)} Equipe</div>
+            <div class="tab ${this._configTab==='permissoes'?'active':''}" onclick="APP.switchConfigTab('permissoes',event)">${LI("shield",16)} Permissões</div>
             <div class="tab ${this._configTab==='metas'?'active':''}" onclick="APP.switchConfigTab('metas',event)">${LI("target",16)} Metas</div>
             <div class="tab ${this._configTab==='sistema'?'active':''}" onclick="APP.switchConfigTab('sistema',event)">${LI("settings",16)} Sistema</div>
         </div>
@@ -4584,6 +4585,50 @@ const APP = {
                         </tr>`).join('')}
                     </tbody>
                 </table>
+            </div>`;
+        } else if (this._configTab === 'permissoes') {
+            const PERMS = [
+                { key: 'ver_dashboard', label: 'Ver Dashboard', desc: 'Acesso à tela inicial com KPIs', default_vendedor: true },
+                { key: 'ver_relatorios', label: 'Ver Relatórios', desc: 'Análise de vendas, mix de produtos, top clientes', default_vendedor: false },
+                { key: 'ver_intelligence', label: 'Ver Inteligência Comercial', desc: 'Win/Loss, Spread, Aging, Concentração', default_vendedor: false },
+                { key: 'ver_pipeline', label: 'Ver Pipeline Completo', desc: 'Vê propostas de todos os vendedores', default_vendedor: false },
+                { key: 'ver_fechamento', label: 'Ver Fechamento Mensal', desc: 'Comissões consolidadas e snapshot', default_vendedor: false },
+                { key: 'ver_compras', label: 'Acesso a Compras', desc: 'Propostas de compra, OCs, fornecedores', default_vendedor: false },
+                { key: 'ver_margem', label: 'Ver Margem e Custo', desc: 'Margem, custo dos itens nas OVs', default_vendedor: false },
+                { key: 'ver_comissao_outros', label: 'Ver Comissão de Outros', desc: 'Vê comissão dos colegas vendedores', default_vendedor: false },
+                { key: 'exportar_dados', label: 'Exportar Dados', desc: 'Backup, exportação Excel', default_vendedor: false },
+            ];
+            const vendedores = (users?.items || []).filter(u => u.ativo && u.perfil === 'vendedor');
+            el.innerHTML = `
+            <div class="card">
+                <div class="card-header"><span class="card-title">${LI("shield",20)} Permissões por Vendedor</span></div>
+                <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+                    Gerentes e diretores têm todas as permissões automaticamente. Configure aqui o que cada vendedor pode acessar — útil quando um vendedor de confiança precisa de mais acesso, ou quando alguém precisa de visibilidade limitada.
+                </p>
+                ${vendedores.length === 0 ? '<div class="empty-state"><p>Nenhum vendedor cadastrado</p></div>' : vendedores.map(u => `
+                    <div style="border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                            <div>
+                                <strong style="font-size:14px">${sanitize(u.nome)}</strong>
+                                <span style="color:var(--text-muted);font-size:11px;margin-left:8px">@${sanitize(u.username)}</span>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="APP.savePermissoes(${u.id})">${LI('check',14)} Salvar</button>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px">
+                            ${PERMS.map(p => {
+                                const cur = u.permissoes || {};
+                                const checked = cur[p.key] !== undefined ? cur[p.key] : p.default_vendedor;
+                                return `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px;border-radius:8px;background:var(--bg-input);cursor:pointer">
+                                    <input type="checkbox" data-userid="${u.id}" data-perm="${p.key}" ${checked ? 'checked' : ''} style="margin-top:2px">
+                                    <div>
+                                        <div style="font-size:13px;font-weight:600">${p.label}</div>
+                                        <div style="font-size:11px;color:var(--text-muted)">${p.desc}</div>
+                                    </div>
+                                </label>`;
+                            }).join('')}
+                        </div>
+                    </div>
+                `).join('')}
             </div>`;
         } else if (this._configTab === 'metas') {
             const mesAtual = new Date().toISOString().slice(0, 7);
@@ -4835,6 +4880,30 @@ const APP = {
         const semanal = parseFloat(document.getElementById(`meta-semanal-${userId}`).value) || 0;
         const res = await this.api('/api/metas', { method: 'POST', body: { user_id: userId, mes, meta_mensal: mensal, meta_semanal: semanal } });
         if (res?.ok) this.toast('Meta salva!', 'success');
+    },
+
+    async savePermissoes(userId) {
+        const permissoes = {};
+        document.querySelectorAll(`input[data-userid="${userId}"][data-perm]`).forEach(cb => {
+            permissoes[cb.dataset.perm] = cb.checked;
+        });
+        const res = await this.api(`/api/users/${userId}/permissoes`, { method: 'PUT', body: { permissoes } });
+        if (res?.ok) {
+            this.toast('Permissões atualizadas!', 'success');
+        } else {
+            this.toast('Erro ao salvar permissões', 'error');
+        }
+    },
+
+    // Check if current user has a specific permission
+    // Gerentes/diretores sempre têm tudo. Vendedores usam permissoes do banco com defaults.
+    hasPermission(key) {
+        if (!this.user) return false;
+        if (this.user.perfil === 'gerente' || this.user.perfil === 'diretor') return true;
+        const perms = this.user.permissoes || {};
+        if (perms[key] !== undefined) return perms[key];
+        // Defaults para vendedor — só ver_dashboard é true por padrão
+        return key === 'ver_dashboard';
     },
 
     async updateSugestao(id, status) {

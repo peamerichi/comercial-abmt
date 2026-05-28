@@ -232,7 +232,7 @@ const FORMS = {
                     </div>
                     <div class="form-group">
                         <label>Peso estimado (kg)</label>
-                        <input type="number" name="peso_estimado" class="form-control" step="0.01" value="${proposta?.peso_estimado||''}">
+                        <input type="number" inputmode="decimal" name="peso_estimado" class="form-control" step="0.01" value="${proposta?.peso_estimado||''}">
                     </div>
                 </div>
                 `}
@@ -250,7 +250,7 @@ const FORMS = {
                 </div>
                 <div class="form-group">
                     <label>Validade (dias)</label>
-                    <input type="number" name="validade_dias" class="form-control" value="${proposta?.validade_dias||7}">
+                    <input type="number" inputmode="decimal" name="validade_dias" class="form-control" value="${proposta?.validade_dias||7}">
                 </div>
             </div>
 
@@ -273,12 +273,12 @@ const FORMS = {
                     <div class="form-row">
                         <div class="form-group">
                             <label>Valor bruto da venda (cliente final)</label>
-                            <input type="number" name="valor_bruto_venda" class="form-control" step="0.01"
+                            <input type="number" inputmode="decimal" name="valor_bruto_venda" class="form-control" step="0.01"
                                 value="${proposta?.valor_bruto_venda || ''}" placeholder="Ex: 180000" oninput="FORMS.calcComissaoIntermediario()">
                         </div>
                         <div class="form-group">
                             <label>Valor líquido (seu preço)</label>
-                            <input type="number" name="valor_liquido_venda" class="form-control" step="0.01"
+                            <input type="number" inputmode="decimal" name="valor_liquido_venda" class="form-control" step="0.01"
                                 value="${proposta?.valor_liquido_venda || ''}" placeholder="Ex: 150000" oninput="FORMS.calcComissaoIntermediario()">
                         </div>
                     </div>
@@ -410,7 +410,7 @@ const FORMS = {
                 <div class="form-row">
                     <div class="form-group">
                         <label>Quantidade</label>
-                        <input type="number" class="form-control item-quantidade" data-index="${index}" step="0.01" min="0" value="${item.quantidade||''}" oninput="FORMS.calcItemTotal(${index})">
+                        <input type="number" inputmode="decimal" class="form-control item-quantidade" data-index="${index}" step="0.01" min="0" value="${item.quantidade||''}" oninput="FORMS.calcItemTotal(${index})">
                     </div>
                     <div class="form-group">
                         <label>Unidade</label>
@@ -422,18 +422,18 @@ const FORMS = {
                 <div class="form-row">
                     <div class="form-group">
                         <label id="valor-label-${index}">Valor unitário (${this.getUnidadeLabel(item.unidade || 'UNIDADE')})</label>
-                        <input type="number" class="form-control item-valor" data-index="${index}" step="0.01" min="0" value="${item.valor_unitario||''}" oninput="FORMS.calcItemTotal(${index})" placeholder="Ex: 65.00">
+                        <input type="number" inputmode="decimal" class="form-control item-valor" data-index="${index}" step="0.01" min="0" value="${item.valor_unitario||''}" oninput="FORMS.calcItemTotal(${index})" placeholder="Ex: 65.00">
                         <div class="price-ref" id="item-price-ref-${index}"></div>
                     </div>
                     <div class="form-group" id="peso-group-${index}" style="display:${['KG','LITRO'].includes(item.unidade)?'none':'block'}">
                         <label>Peso unitário (kg)</label>
-                        <input type="number" class="form-control item-peso" data-index="${index}" step="0.01" value="${item.peso_unitario||''}">
+                        <input type="number" inputmode="decimal" class="form-control item-peso" data-index="${index}" step="0.01" value="${item.peso_unitario||''}">
                     </div>
                 </div>
                 <div id="preco-unidade-row-${index}" class="form-row" style="display:${['Transformador Usado','Transformador Novo'].includes(item.categoria)?'flex':'none'}">
                     <div class="form-group">
                         <label id="preco-alt-label-${index}">Preço da unidade (R$)</label>
-                        <input type="number" class="form-control item-preco-unidade" data-index="${index}" step="0.01" min="0" value="${(item.campos_especificos||{}).preco_unidade||''}" oninput="FORMS.calcPrecoKVA(${index})" placeholder="Ex: 23000">
+                        <input type="number" inputmode="decimal" class="form-control item-preco-unidade" data-index="${index}" step="0.01" min="0" value="${(item.campos_especificos||{}).preco_unidade||''}" oninput="FORMS.calcPrecoKVA(${index})" placeholder="Ex: 23000">
                     </div>
                     <div class="form-group" style="padding-top:20px;font-size:12px;color:var(--text-secondary)" id="preco-conv-${index}"></div>
                 </div>
@@ -447,7 +447,7 @@ const FORMS = {
                 <div class="form-row" style="margin-top:8px">
                     <div class="form-group">
                         <label>Custo ref. (R$/${(item.unidade||'un').toLowerCase()})</label>
-                        <input type="number" class="form-control item-custo-ref" data-index="${index}" step="0.01" value="${item.custo_referencia||specs.custo_referencia||''}" oninput="FORMS.calcMargin(${index})" placeholder="Custo base">
+                        <input type="number" inputmode="decimal" class="form-control item-custo-ref" data-index="${index}" step="0.01" value="${item.custo_referencia||specs.custo_referencia||''}" oninput="FORMS.calcMargin(${index})" placeholder="Custo base">
                     </div>
                     <div class="form-group">
                         <div id="item-margin-${index}" class="margin-indicator" style="font-size:12px;padding-top:20px"></div>
@@ -528,8 +528,8 @@ const FORMS = {
                         <button type="button" class="toggle-btn ${specs.tipo_aco==='GNO'?'active':''}" onclick="FORMS.setSpec(${index},'tipo_aco','GNO',this)">GNO</button>
                     </div>
                 </div>
-                <div class="form-group"><label>Largura (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="largura" value="${specs.largura||''}"></div>
-                <div class="form-group"><label>Espessura (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="espessura" step="0.01" value="${specs.espessura||''}"></div>
+                <div class="form-group"><label>Largura (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="largura" value="${specs.largura||''}"></div>
+                <div class="form-group"><label>Espessura (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="espessura" step="0.01" value="${specs.espessura||''}"></div>
             </div>`;
         } else if (['Chapas de Aço Silício', 'Chapas de Aço Silício Cortadas'].includes(categoria)) {
             html = `<div class="form-row-3">
@@ -539,8 +539,8 @@ const FORMS = {
                         <button type="button" class="toggle-btn ${specs.tipo_aco==='GNO'?'active':''}" onclick="FORMS.setSpec(${index},'tipo_aco','GNO',this)">GNO</button>
                     </div>
                 </div>
-                <div class="form-group"><label>Espessura (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="espessura" step="0.01" value="${specs.espessura||''}"></div>
-                <div class="form-group"><label>Largura (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="largura" value="${specs.largura||''}"></div>
+                <div class="form-group"><label>Espessura (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="espessura" step="0.01" value="${specs.espessura||''}"></div>
+                <div class="form-group"><label>Largura (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="largura" value="${specs.largura||''}"></div>
             </div>`;
         } else if (categoria === 'Cobre') {
             html = `<div class="form-group"><label>Tipo</label>
@@ -587,23 +587,23 @@ const FORMS = {
         } else if (categoria === 'Caixa e Núcleo') {
             html = `
             <div class="form-row-3">
-                <div class="form-group"><label>Peso caixa (kg)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="peso_caixa" value="${specs.peso_caixa||''}"></div>
-                <div class="form-group"><label>Peso núcleo (kg)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="peso_nucleo" value="${specs.peso_nucleo||''}"></div>
+                <div class="form-group"><label>Peso caixa (kg)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="peso_caixa" value="${specs.peso_caixa||''}"></div>
+                <div class="form-group"><label>Peso núcleo (kg)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="peso_nucleo" value="${specs.peso_nucleo||''}"></div>
                 <div class="form-group"><label>Potência (kVA)</label><input type="text" class="form-control item-spec" data-index="${index}" data-field="potencia" value="${specs.potencia||''}"></div>
             </div>
             <div class="form-row-3">
-                <div class="form-group"><label>A caixa (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="caixa_altura" value="${specs.caixa_altura||''}"></div>
-                <div class="form-group"><label>L caixa (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="caixa_largura" value="${specs.caixa_largura||''}"></div>
-                <div class="form-group"><label>C caixa (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="caixa_comprimento" value="${specs.caixa_comprimento||''}"></div>
+                <div class="form-group"><label>A caixa (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="caixa_altura" value="${specs.caixa_altura||''}"></div>
+                <div class="form-group"><label>L caixa (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="caixa_largura" value="${specs.caixa_largura||''}"></div>
+                <div class="form-group"><label>C caixa (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="caixa_comprimento" value="${specs.caixa_comprimento||''}"></div>
             </div>
             <div class="form-row-3">
-                <div class="form-group"><label>A núcleo (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="nucleo_altura" value="${specs.nucleo_altura||''}"></div>
-                <div class="form-group"><label>L núcleo (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="nucleo_largura" value="${specs.nucleo_largura||''}"></div>
-                <div class="form-group"><label>C núcleo (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="nucleo_comprimento" value="${specs.nucleo_comprimento||''}"></div>
+                <div class="form-group"><label>A núcleo (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="nucleo_altura" value="${specs.nucleo_altura||''}"></div>
+                <div class="form-group"><label>L núcleo (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="nucleo_largura" value="${specs.nucleo_largura||''}"></div>
+                <div class="form-group"><label>C núcleo (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="nucleo_comprimento" value="${specs.nucleo_comprimento||''}"></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>A janela (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="janela_altura" value="${specs.janela_altura||''}"></div>
-                <div class="form-group"><label>L janela (mm)</label><input type="number" class="form-control item-spec" data-index="${index}" data-field="janela_largura" value="${specs.janela_largura||''}"></div>
+                <div class="form-group"><label>A janela (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="janela_altura" value="${specs.janela_altura||''}"></div>
+                <div class="form-group"><label>L janela (mm)</label><input type="number" inputmode="decimal" class="form-control item-spec" data-index="${index}" data-field="janela_largura" value="${specs.janela_largura||''}"></div>
             </div>`;
         }
         return html;
@@ -1240,7 +1240,7 @@ const FORMS = {
                 </div>
                 <div class="form-group">
                     <label>Limite de faturamento (R$)</label>
-                    <input type="number" name="limite_faturamento" class="form-control" step="0.01" value="${cadastro?.limite_faturamento||''}">
+                    <input type="number" inputmode="decimal" name="limite_faturamento" class="form-control" step="0.01" value="${cadastro?.limite_faturamento||''}">
                 </div>
                 <div class="form-group">
                     <label>Observações</label>
@@ -1793,15 +1793,15 @@ const FORMS = {
                     <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
                         <div class="form-group">
                             <label>Quantidade *</label>
-                            <input type="number" name="quantidade" value="1" min="1" step="any" required>
+                            <input type="number" inputmode="decimal" name="quantidade" value="1" min="1" step="any" required>
                         </div>
                         <div class="form-group">
                             <label>Valor unitário (R$) *</label>
-                            <input type="number" name="valor_unitario" step="0.01" min="0" required>
+                            <input type="number" inputmode="decimal" name="valor_unitario" step="0.01" min="0" required>
                         </div>
                         <div class="form-group">
                             <label>Peso unitário (kg)</label>
-                            <input type="number" name="peso_unitario" step="0.01" min="0" value="0">
+                            <input type="number" inputmode="decimal" name="peso_unitario" step="0.01" min="0" value="0">
                         </div>
                     </div>
                     <div class="form-group">

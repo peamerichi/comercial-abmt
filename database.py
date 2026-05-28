@@ -531,6 +531,13 @@ def init_db():
     except sqlite3.OperationalError:
         pass  # column already exists
 
+    # Migration: per-user permission overrides (JSON object)
+    # ex: {"ver_relatorios": true, "ver_intelligence": false, "ver_dashboard_completo": false}
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN permissoes TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Migration: expand OV status to include workflow statuses
     # SQLite doesn't support ALTER CHECK, so we recreate by removing constraint via rename+copy
     try:

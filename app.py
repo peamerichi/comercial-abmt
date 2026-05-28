@@ -199,11 +199,25 @@ def gestor_required(f):
     return decorated
 
 def get_current_user():
-    return {
+    user = {
         'id': session.get('user_id'),
         'nome': session.get('nome'),
         'perfil': session.get('perfil')
     }
+    # Fetch per-user permissions from DB (cached in session would be faster but
+    # this ensures admin changes take effect immediately)
+    if user['id']:
+        try:
+            conn = _raw_get_db()
+            row = conn.execute("SELECT permissoes FROM users WHERE id=?", (user['id'],)).fetchone()
+            conn.close()
+            if row and row['permissoes']:
+                user['permissoes'] = json.loads(row['permissoes'])
+            else:
+                user['permissoes'] = {}
+        except Exception:
+            user['permissoes'] = {}
+    return user
 
 # ============ AUTH ROUTES ============
 
@@ -3919,9 +3933,40 @@ def consulta_cnpj(cnpj):
 @login_required
 def list_users():
     conn = get_db()
-    rows = conn.execute("SELECT id, username, nome, perfil, ativo FROM users").fetchall()
+    rows = conn.execute("SELECT id, username, nome, perfil, ativo, permissoes FROM users").fetchall()
     conn.close()
-    return jsonify({'items': [dict(r) for r in rows]})
+    items = []
+    for r in rows:
+        d = dict(r)
+        # Parse permissoes JSON for frontend convenience
+        try:
+            d['permissoes'] = json.loads(d.get('permissoes') or '{}')
+        except Exception:
+            d['permissoes'] = {}
+        items.append(d)
+    return jsonify({'items': items})
+
+
+@app.route('/api/users/<int:id>/permissoes', methods=['PUT'])
+@gestor_required
+def update_user_permissoes(id):
+    """Update per-user permissions (gestor/diretor only).
+    Body: { permissoes: { ver_relatorios: bool, ver_intelligence: bool, ... } }
+    """
+    data = request.json or {}
+    perms = data.get('permissoes', {})
+    if not isinstance(perms, dict):
+        return jsonify({'error': 'permissoes deve ser um objeto'}), 400
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT id FROM users WHERE id=?", (id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Usuário não encontrado'}), 404
+        conn.execute("UPDATE users SET permissoes=? WHERE id=?", (json.dumps(perms), id))
+        conn.commit()
+        return jsonify({'ok': True})
+    finally:
+        conn.close()
 
 
 @app.route('/api/users', methods=['POST'])
