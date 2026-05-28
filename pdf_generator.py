@@ -215,37 +215,44 @@ def generate_proposta_pdf(proposta_id):
     for item in cond_items:
         elements.append(Paragraph(f"• {item}", styles['Normal']))
 
-    # Payment schedule table
+    # Payment schedule table — uses centralized service (juros compostos)
     if cond_tipo and cond_tipo not in ('Personalizado', 'À vista'):
-        dias_str = cond_tipo.replace(' dias', '').split('/')
-        dias = [int(d) for d in dias_str if d.strip().isdigit()]
-        if dias:
+        try:
+            # sqlite3.Row doesn't have .get() — use try/except for column access
             try:
-                # sqlite3.Row doesn't have .get() — use try/except for column access
-                try:
-                    db_fat = prop['data_base_faturamento']
-                except (IndexError, KeyError):
-                    db_fat = None
-                db_fat = db_fat or prop['data_emissao']
-                data_base = datetime.strptime(db_fat[:10], '%Y-%m-%d')
-            except:
-                data_base = datetime.now()
-            n_parcelas = len(dias)
-            valor_parcela = round(total_valor / n_parcelas, 2) if n_parcelas > 0 else 0
+                db_fat = prop['data_base_faturamento']
+            except (IndexError, KeyError):
+                db_fat = None
+            db_fat = db_fat or prop['data_emissao']
+            data_base = datetime.strptime(db_fat[:10], '%Y-%m-%d')
+        except Exception:
+            data_base = datetime.now()
 
+        try:
+            taxa_aplicada = prop['taxa_juros_aplicada'] or float(configs.get('taxa_juros_venda_prazo', 2.8))
+        except (IndexError, KeyError):
+            taxa_aplicada = float(configs.get('taxa_juros_venda_prazo', 2.8))
+
+        # Import centralized service to avoid duplication
+        from app import gerar_parcelas_para_ov
+        parcelas_pdf = gerar_parcelas_para_ov(
+            prop['condicao_pagamento'], total_valor, data_base, taxa_aplicada
+        )
+
+        if parcelas_pdf and len(parcelas_pdf) > 1:
             elements.append(Spacer(1, 3*mm))
             parcela_data = [['Parcela', 'Vencimento', 'Dias', 'Valor']]
-            for i, d in enumerate(dias):
-                dt_venc = data_base + timedelta(days=d)
-                # Last parcela adjusts for rounding so sum matches total exactly
-                val = valor_parcela if i < n_parcelas - 1 else round(total_valor - valor_parcela * (n_parcelas - 1), 2)
+            soma_parcelas = 0
+            for p in parcelas_pdf:
+                dt_venc = datetime.strptime(p['data_vencimento'], '%Y-%m-%d')
                 parcela_data.append([
-                    f"{i+1}/{n_parcelas}",
+                    f"{p['numero']}/{p['total']}",
                     dt_venc.strftime('%d/%m/%Y'),
-                    f"{d} dias",
-                    f"R$ {format_money(val)}"
+                    f"{p['dias']} dias",
+                    f"R$ {format_money(p['valor'])}"
                 ])
-            parcela_data.append(['', '', Paragraph('<b>Total</b>', styles['Normal']), Paragraph(f"<b>R$ {format_money(total_valor)}</b>", styles['Normal'])])
+                soma_parcelas += p['valor']
+            parcela_data.append(['', '', Paragraph('<b>Total</b>', styles['Normal']), Paragraph(f"<b>R$ {format_money(soma_parcelas)}</b>", styles['Normal'])])
 
             parcela_widths = [22*mm, 35*mm, 22*mm, 40*mm]
             pt = Table(parcela_data, colWidths=parcela_widths)

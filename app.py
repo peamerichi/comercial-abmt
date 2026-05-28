@@ -1535,55 +1535,21 @@ def converter_proposta(id):
                      item['desconto_tipo'], item['desconto_valor'], item['valor_total'],
                      com_pct, com_val, custo, margem))
 
-            # Create parcelas - auto-generate from condition type
-            cond = json.loads(prop['condicao_pagamento'] or '{}')
+            # Create parcelas using centralized service (applies juros)
             valor_bruto_total = sum(float(i['valor_total'] or 0) for i in items)
-            cond_tipo = cond.get('tipo', 'À vista') if isinstance(cond, dict) else str(cond)
-
-            if cond.get('parcelas'):
-                # Use pre-computed parcelas if available
-                for p in cond['parcelas']:
-                    conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
-                        VALUES (?,?,?,?,?)''', (ordem_id, p['numero'], p['total'], p['valor'], p['vencimento']))
-            elif cond_tipo and cond_tipo != 'À vista' and valor_bruto_total > 0:
-                # Auto-generate parcelas: parse days dynamically from condition string (e.g. "30/60/90 dias" → [30,60,90])
-                dias_parts = cond_tipo.replace(' dias', '').split('/')
-                dias_list = [int(d.strip()) for d in dias_parts if d.strip().isdigit()]
-                if not dias_list and cond.get('dias_custom'):
-                    # Handle personalizado
-                    try:
-                        dias_list = [int(d.strip()) for d in str(cond['dias_custom']).split(',') if d.strip()]
-                    except:
-                        dias_list = None
-
-                if not dias_list or len(dias_list) == 0:
-                    # Fallback for "Personalizado" without dias_custom: single parcela at 30 days
-                    dias_list = [30]
-
-                if dias_list:
-                    n_parcelas = len(dias_list)
-                    valor_parcela = round(valor_bruto_total / n_parcelas, 2)
-                    # Use data_base_faturamento from proposta, fallback to data_emissao, then now()
-                    try:
-                        db_fat = prop['data_base_faturamento'] or prop['data_emissao']
-                        data_base = datetime.strptime(db_fat[:10], '%Y-%m-%d')
-                    except:
-                        data_base = datetime.now()
-                    for i, dias in enumerate(dias_list):
-                        venc = (data_base + timedelta(days=dias)).strftime('%Y-%m-%d')
-                        # Last parcela adjusts for rounding
-                        val = valor_parcela if i < n_parcelas - 1 else round(valor_bruto_total - valor_parcela * (n_parcelas - 1), 2)
-                        conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
-                            VALUES (?,?,?,?,?)''', (ordem_id, i+1, n_parcelas, val, venc))
-            elif cond_tipo == 'À vista' and valor_bruto_total > 0:
-                # À vista = 1 parcela na data base do faturamento
-                try:
-                    db_fat_av = prop['data_base_faturamento'] or prop['data_emissao']
-                    data_av = datetime.strptime(db_fat_av[:10], '%Y-%m-%d').strftime('%Y-%m-%d')
-                except:
-                    data_av = datetime.now().strftime('%Y-%m-%d')
+            try:
+                db_fat = prop['data_base_faturamento'] or prop['data_emissao']
+                data_base_dt = datetime.strptime(db_fat[:10], '%Y-%m-%d')
+            except Exception:
+                data_base_dt = datetime.now()
+            taxa_aplicada = taxa_juros_aplicada or float(config.get('taxa_juros_venda_prazo', 2.8))
+            parcelas_geradas = gerar_parcelas_para_ov(
+                prop['condicao_pagamento'], valor_bruto_total, data_base_dt, taxa_aplicada
+            )
+            for p in parcelas_geradas:
                 conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
-                    VALUES (?,?,?,?,?)''', (ordem_id, 1, 1, valor_bruto_total, data_av))
+                    VALUES (?,?,?,?,?)''',
+                    (ordem_id, p['numero'], p['total'], p['valor'], p['data_vencimento']))
 
             # Update ordem_gerada reference (status already set to Convertida at transaction start)
             conn.execute(
@@ -1783,12 +1749,23 @@ def create_ov():
                  item.get('descricao_complementar'), peso_unit, peso_total, qtd, unidade,
                  val_unit, desc_tipo, desconto, valor_total, com['comissao_percentual'], com['comissao_valor']))
 
-        # Parcelas
-        cond = data.get('condicao_pagamento', {})
-        if cond.get('parcelas'):
-            for p in cond['parcelas']:
-                conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
-                    VALUES (?,?,?,?,?)''', (ov_id, p['numero'], p['total'], p['valor'], p['vencimento']))
+        # Parcelas — centralized service applies juros compostos
+        cond_json = data.get('condicao_pagamento', {})
+        # Recompute valor_bruto_total from items just inserted
+        valor_bruto_total = conn.execute(
+            "SELECT COALESCE(SUM(valor_total), 0) as t FROM ov_items WHERE ov_id=?", (ov_id,)
+        ).fetchone()['t']
+        try:
+            db_fat = data.get('data_base_faturamento') or datetime.now().strftime('%Y-%m-%d')
+            data_base_dt = datetime.strptime(db_fat[:10], '%Y-%m-%d')
+        except Exception:
+            data_base_dt = datetime.now()
+        taxa_aplicada = float(data.get('taxa_juros_aplicada') or config.get('taxa_juros_venda_prazo', 2.8))
+        parcelas_geradas = gerar_parcelas_para_ov(cond_json, valor_bruto_total, data_base_dt, taxa_aplicada)
+        for p in parcelas_geradas:
+            conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
+                VALUES (?,?,?,?,?)''',
+                (ov_id, p['numero'], p['total'], p['valor'], p['data_vencimento']))
 
         conn.commit()
     except Exception as e:
@@ -4176,6 +4153,113 @@ def assistente():
 def _get_configs(conn):
     rows = conn.execute("SELECT chave, valor FROM configuracoes").fetchall()
     return {r['chave']: r['valor'] for r in rows}
+
+
+def gerar_parcelas_para_ov(condicao_pagamento_json, valor_bruto_total, data_base, taxa_juros_mensal=2.8):
+    """Gera lista de parcelas com juros compostos.
+
+    Centraliza o cálculo que estava duplicado entre frontend (forms.js),
+    backend (converter_proposta/create_ov) e PDF (pdf_generator).
+
+    Args:
+        condicao_pagamento_json: JSON string ou dict com {tipo, parcelas[], dias_custom}
+        valor_bruto_total: soma dos valores dos itens (float)
+        data_base: datetime (data base do faturamento ou data_emissao)
+        taxa_juros_mensal: % ao mês (default 2.8)
+
+    Returns:
+        list of dicts: [{numero, total, valor, data_vencimento, dias}]
+        Lista vazia se à vista, sem condição ou valor zero.
+    """
+    if not condicao_pagamento_json or valor_bruto_total <= 0:
+        return []
+
+    try:
+        cond = json.loads(condicao_pagamento_json) if isinstance(condicao_pagamento_json, str) else condicao_pagamento_json
+    except Exception:
+        return []
+
+    cond_tipo = cond.get('tipo', '') if isinstance(cond, dict) else str(cond)
+
+    # If parcelas already computed in cond (frontend sent them), use as-is
+    if isinstance(cond, dict) and cond.get('parcelas'):
+        return [
+            {
+                'numero': p['numero'],
+                'total': p['total'],
+                'valor': float(p['valor']),
+                'data_vencimento': p['vencimento'],
+                'dias': p.get('dias', 0),
+            }
+            for p in cond['parcelas']
+        ]
+
+    if not data_base:
+        data_base = datetime.now()
+
+    # À vista: uma parcela na data base, sem juros
+    if cond_tipo == 'À vista':
+        return [{
+            'numero': 1,
+            'total': 1,
+            'valor': round(valor_bruto_total, 2),
+            'data_vencimento': data_base.strftime('%Y-%m-%d'),
+            'dias': 0,
+        }]
+
+    # Parse dias from condition string (e.g. "30/60/90 dias" → [30,60,90])
+    dias_list = []
+    if cond_tipo:
+        dias_parts = cond_tipo.replace(' dias', '').split('/')
+        dias_list = [int(d.strip()) for d in dias_parts if d.strip().isdigit()]
+
+    if not dias_list and isinstance(cond, dict) and cond.get('dias_custom'):
+        try:
+            dias_list = [int(d.strip()) for d in str(cond['dias_custom']).split(',') if d.strip()]
+        except Exception:
+            pass
+
+    if not dias_list:
+        # Fallback: single parcela at 30 days
+        dias_list = [30]
+
+    n = len(dias_list)
+    taxa = float(taxa_juros_mensal) / 100.0
+    parcelas = []
+
+    # Calcula valor da parcela COM juros compostos: parcela × (1+taxa)^(dias/30) = valor presente proporcional
+    # Para distribuir o valor bruto entre n parcelas iguais com juros:
+    # parcela_base = valor_bruto * (1 + taxa)^(dias_medio/30) / n  (aproximação)
+    # Mais correto: a soma dos valores futuros descontados deve igualar o valor bruto.
+    # Aqui usamos o mesmo cálculo do frontend: parcela_base = total / n, depois aplica juros em cada parcela
+    valor_parcela_base = round(valor_bruto_total / n, 2)
+
+    for i, dias in enumerate(dias_list):
+        venc = (data_base + timedelta(days=dias)).strftime('%Y-%m-%d')
+        # Aplica juros compostos sobre o valor base de cada parcela
+        valor_com_juros = valor_parcela_base * ((1 + taxa) ** (dias / 30.0))
+        # Last parcela ajusta para somar exatamente
+        if i < n - 1:
+            valor_final = round(valor_com_juros, 2)
+        else:
+            # Calcula o total dos anteriores e ajusta a última
+            soma_anteriores = sum(p['valor'] for p in parcelas)
+            # Soma esperada com juros
+            total_esperado = sum(
+                valor_parcela_base * ((1 + taxa) ** (d / 30.0))
+                for d in dias_list
+            )
+            valor_final = round(total_esperado - soma_anteriores, 2)
+
+        parcelas.append({
+            'numero': i + 1,
+            'total': n,
+            'valor': valor_final,
+            'data_vencimento': venc,
+            'dias': dias,
+        })
+
+    return parcelas
 
 
 def calcular_comissao_item(valor_total, categoria, perfil, uf_destino, icms_isento, pis_percentual, configs):
