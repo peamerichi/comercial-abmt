@@ -3495,6 +3495,92 @@ def fechamento(ano, mes):
     })
 
 
+@app.route('/api/minhas-comissoes/<int:ano>/<int:mes>')
+@login_required
+def minhas_comissoes(ano, mes):
+    """Comissões do próprio usuário (vendas + compras) no mês — controle do vendedor."""
+    user = get_current_user()
+    conn = get_db()
+    config = _get_configs(conn)
+    comissao_compras_raw = json.loads(config.get('comissao_compras', '{}'))
+    mes_str = f'{mes:02d}'
+    ano_str = str(ano)
+    uid = user['id']
+
+    # Mapear comissão de compra do usuário (por id ou por nome)
+    users_rows = conn.execute("SELECT id, nome FROM users").fetchall()
+    name_to_id = {u['nome']: u['id'] for u in users_rows}
+    pct_compra = 3.0
+    for k, v in comissao_compras_raw.items():
+        if k in ('diferenca_gerente', 'gerente_extra_vendedores'):
+            continue
+        if isinstance(v, (int, float)):
+            if str(k).isdigit() and int(k) == uid:
+                pct_compra = v
+            elif k in name_to_id and name_to_id[k] == uid:
+                pct_compra = v
+
+    # VENDAS do mês (OVs do usuário)
+    ovs = conn.execute("""SELECT ov.id, ov.numero, ov.data_emissao, ov.status, c.razao_social
+        FROM ordens_venda ov LEFT JOIN cadastros c ON ov.cadastro_id=c.id
+        WHERE ov.vendedor_id=? AND strftime('%m',ov.data_emissao)=? AND strftime('%Y',ov.data_emissao)=?
+        AND ov.status!='Cancelada' ORDER BY ov.data_emissao DESC""",
+        (uid, mes_str, ano_str)).fetchall()
+
+    vendas = []
+    total_com_vendas = 0
+    for ov in ovs:
+        items = conn.execute("SELECT valor_total, comissao_valor FROM ov_items WHERE ov_id=?", (ov['id'],)).fetchall()
+        valor_bruto = sum(i['valor_total'] or 0 for i in items)
+        comissao = sum(i['comissao_valor'] or 0 for i in items)
+        parcelas = conn.execute("SELECT valor, data_vencimento FROM ov_parcelas WHERE ov_id=?", (ov['id'],)).fetchall()
+        qual = _calc_qualitativo_logic([dict(p) for p in parcelas], ov['data_emissao'] or '', valor_bruto)
+        total_com_vendas += comissao
+        vendas.append({
+            'ov_id': ov['id'], 'numero': ov['numero'], 'cliente': ov['razao_social'],
+            'data': ov['data_emissao'], 'status': ov['status'],
+            'valor_bruto': valor_bruto, 'comissao': comissao,
+            'qualitativo_pct': qual['score_pct'], 'faturamento': qual['faturamento']
+        })
+
+    # COMPRAS do mês (OCs do usuário)
+    ocs = conn.execute("""SELECT oc.id, oc.numero, oc.data_emissao, oc.status, c.razao_social,
+        (SELECT COALESCE(SUM(valor_total),0) FROM oc_items WHERE oc_id=oc.id) as valor
+        FROM ordens_compra oc LEFT JOIN cadastros c ON oc.cadastro_id=c.id
+        WHERE oc.comprador_id=? AND strftime('%m',oc.data_emissao)=? AND strftime('%Y',oc.data_emissao)=?
+        AND oc.status!='Cancelada' ORDER BY oc.data_emissao DESC""",
+        (uid, mes_str, ano_str)).fetchall()
+
+    compras = []
+    total_com_compras = 0
+    for oc in ocs:
+        valor = oc['valor'] or 0
+        comissao = valor * pct_compra / 100
+        total_com_compras += comissao
+        compras.append({
+            'oc_id': oc['id'], 'numero': oc['numero'], 'fornecedor': oc['razao_social'],
+            'data': oc['data_emissao'], 'status': oc['status'],
+            'valor': valor, 'percentual': pct_compra, 'comissao': comissao
+        })
+
+    # Status do fechamento do mês (vendedor só consulta)
+    fech_v = conn.execute("SELECT status FROM fechamentos WHERE mes=? AND ano=? AND tipo IN ('vendas','geral') ORDER BY tipo", (mes, ano)).fetchone()
+    fech_c = conn.execute("SELECT status FROM fechamentos WHERE mes=? AND ano=? AND tipo IN ('compras','geral') ORDER BY tipo", (mes, ano)).fetchone()
+
+    conn.close()
+    return jsonify({
+        'mes': mes, 'ano': ano,
+        'vendas': vendas,
+        'compras': compras,
+        'total_comissao_vendas': total_com_vendas,
+        'total_comissao_compras': total_com_compras,
+        'total_a_receber': total_com_vendas + total_com_compras,
+        'pct_compra': pct_compra,
+        'fechamento_vendas_status': fech_v['status'] if fech_v else 'Aberto',
+        'fechamento_compras_status': fech_c['status'] if fech_c else 'Aberto',
+    })
+
+
 def _gerar_snapshot_fechamento(conn, ano, mes):
     """Gera snapshot JSON com todos os dados de comissão do mês — usado ao fechar."""
     # Reutiliza a mesma lógica do GET /api/fechamento, serializado pra JSON

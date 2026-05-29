@@ -274,6 +274,7 @@ const APP = {
                 <div class="nav-section">OPERACIONAL</div>
                 <a class="nav-link" data-page="cadastros" onclick="APP.navigate('cadastros')">${LI('users',16)} Clientes</a>
                 <a class="nav-link" data-page="followups" onclick="APP.navigate('followups')">${LI('bell',16)} Follow-ups</a>
+                <a class="nav-link" data-page="minhas_comissoes" onclick="APP.navigate('minhas_comissoes')">${LI('coins',16)} Minhas Comissões</a>
                 <a class="nav-link" data-page="notas" onclick="APP.navigate('notas')">${LI('sticky-note',16)} Notas</a>
                 ${(can('ver_pipeline') || can('ver_fechamento') || can('ver_relatorios') || can('ver_intelligence') || isGestor) ? `
                 <div class="nav-section">GESTÃO</div>
@@ -424,6 +425,7 @@ const APP = {
             cadastro_view: () => this.renderCadastroView(params.id),
             cadastro_form: () => FORMS.renderCadastroForm(params),
             followups: () => this.renderFollowups(),
+            minhas_comissoes: () => this.renderMinhasComissoes(),
             pipeline: () => this.renderPipeline(),
             fechamento: () => this.renderFechamento(params),
             relatorios: () => this.renderRelatorios(params),
@@ -4066,6 +4068,100 @@ const APP = {
         this._followupVendedorFiltro = vendedorId || null;
         this.renderFollowups();
     },
+
+    // ===== MINHAS COMISSÕES =====
+    _comissaoMes: null,
+    _comissaoAno: null,
+
+    async renderMinhasComissoes() {
+        const el = document.getElementById('page-content');
+        const now = new Date();
+        const mes = this._comissaoMes || (now.getMonth() + 1);
+        const ano = this._comissaoAno || now.getFullYear();
+        el.innerHTML = `<div class="loading">${this.skeletonKPI(3)}${this.skeletonList(4)}</div>`;
+        const data = await this.api(`/api/minhas-comissoes/${ano}/${mes}`);
+        if (!data) return;
+
+        const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+        const fmt = v => `R$ ${this.formatMoney(v)}`;
+        const fechadoV = data.fechamento_vendas_status === 'Fechado';
+        const fechadoC = data.fechamento_compras_status === 'Fechado';
+
+        const vendasRows = data.vendas.length ? data.vendas.map(v => `
+            <tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="APP.navigate('ov_view',{id:${v.ov_id}})">
+                <td style="padding:8px">${v.numero}</td>
+                <td style="padding:8px">${sanitize(v.cliente || '-')}</td>
+                <td style="padding:8px;text-align:right">${fmt(v.valor_bruto)}</td>
+                <td style="padding:8px;text-align:center"><span class="badge" style="font-size:10px">${v.faturamento}</span></td>
+                <td style="padding:8px;text-align:right;color:var(--success);font-weight:700">${fmt(v.comissao)}</td>
+            </tr>`).join('') : `<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted)">Nenhuma venda no mês</td></tr>`;
+
+        const comprasRows = data.compras.length ? data.compras.map(c => `
+            <tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="APP.navigate('oc_view',{id:${c.oc_id}})">
+                <td style="padding:8px">${c.numero}</td>
+                <td style="padding:8px">${sanitize(c.fornecedor || '-')}</td>
+                <td style="padding:8px;text-align:right">${fmt(c.valor)}</td>
+                <td style="padding:8px;text-align:center">${this.formatNumber(c.percentual)}%</td>
+                <td style="padding:8px;text-align:right;color:var(--success);font-weight:700">${fmt(c.comissao)}</td>
+            </tr>`).join('') : `<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--text-muted)">Nenhuma compra no mês</td></tr>`;
+
+        el.innerHTML = `
+        ${this.pageHeader(LI('coins',20)+' Minhas Comissões', 'dashboard', `
+            <select class="form-control" style="width:auto;display:inline" onchange="APP.mudarMesComissao(this.value)">
+                ${meses.map((m,i) => `<option value="${i+1}" ${(i+1)===mes?'selected':''}>${m}</option>`).join('')}
+            </select>
+            <select class="form-control" style="width:auto;display:inline;margin-left:6px" onchange="APP.mudarAnoComissao(this.value)">
+                ${[ano,ano-1,ano-2].map(a => `<option value="${a}" ${a===ano?'selected':''}>${a}</option>`).join('')}
+            </select>
+        `)}
+
+        <div class="card" style="margin-bottom:16px;padding:20px;text-align:center;background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(16,185,129,0.04));border:1px solid var(--success)">
+            <div style="font-size:13px;color:var(--text-secondary)">Total a receber em ${meses[mes-1]}/${ano}</div>
+            <div style="font-size:32px;font-weight:800;color:var(--success);margin:4px 0">${fmt(data.total_a_receber)}</div>
+            <div style="font-size:12px;color:var(--text-muted)">
+                Vendas: ${fmt(data.total_comissao_vendas)} · Compras: ${fmt(data.total_comissao_compras)}
+            </div>
+        </div>
+
+        ${(fechadoV || fechadoC) ? `<div class="alert" style="background:rgba(99,102,241,0.1);border:1px solid var(--accent);margin-bottom:12px;font-size:13px">${LI('check-circle',16)} Mês fechado pela gestão — valores consolidados.</div>` : `<div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${LI('info',12)} Valores estimados — podem mudar até o fechamento do mês.</div>`}
+
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">${LI('upload',18)} Vendas (${data.vendas.length})</span>
+                <span style="color:var(--success);font-weight:700">${fmt(data.total_comissao_vendas)}</span>
+            </div>
+            <div style="overflow-x:auto">
+            <table style="width:100%;font-size:13px;border-collapse:collapse">
+                <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted);font-size:11px">
+                    <th style="padding:8px;text-align:left">OV</th><th style="padding:8px;text-align:left">CLIENTE</th>
+                    <th style="padding:8px;text-align:right">VALOR</th><th style="padding:8px;text-align:center">FATUR.</th>
+                    <th style="padding:8px;text-align:right">COMISSÃO</th>
+                </tr></thead>
+                <tbody>${vendasRows}</tbody>
+            </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">${LI('download',18)} Compras (${data.compras.length})</span>
+                <span style="color:var(--success);font-weight:700">${fmt(data.total_comissao_compras)}</span>
+            </div>
+            <div style="overflow-x:auto">
+            <table style="width:100%;font-size:13px;border-collapse:collapse">
+                <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted);font-size:11px">
+                    <th style="padding:8px;text-align:left">OC</th><th style="padding:8px;text-align:left">FORNECEDOR</th>
+                    <th style="padding:8px;text-align:right">VALOR</th><th style="padding:8px;text-align:center">%</th>
+                    <th style="padding:8px;text-align:right">COMISSÃO</th>
+                </tr></thead>
+                <tbody>${comprasRows}</tbody>
+            </table>
+            </div>
+        </div>`;
+    },
+
+    mudarMesComissao(m) { this._comissaoMes = parseInt(m); this.renderMinhasComissoes(); },
+    mudarAnoComissao(a) { this._comissaoAno = parseInt(a); this.renderMinhasComissoes(); },
 
     async concluirFollowup(id) {
         if (!await this.confirm('Marcar follow-up como concluido?')) return;
