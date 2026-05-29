@@ -4747,7 +4747,7 @@ const APP = {
                 { key: 'ver_intelligence', label: 'Ver Inteligência Comercial', desc: 'Win/Loss, Spread, Aging, Concentração', default_vendedor: false },
                 { key: 'ver_pipeline', label: 'Ver Pipeline Completo', desc: 'Vê propostas de todos os vendedores', default_vendedor: false },
                 { key: 'ver_fechamento', label: 'Ver Fechamento Mensal', desc: 'Comissões consolidadas e snapshot', default_vendedor: false },
-                { key: 'ver_compras', label: 'Acesso a Compras', desc: 'Propostas de compra, OCs, fornecedores', default_vendedor: false },
+                { key: 'ver_compras', label: 'Acesso a Compras', desc: 'Propostas de compra, OCs, fornecedores', default_vendedor: true },
                 { key: 'ver_margem', label: 'Ver Margem e Custo', desc: 'Margem, custo dos itens nas OVs', default_vendedor: false },
                 { key: 'ver_comissao_outros', label: 'Ver Comissão de Outros', desc: 'Vê comissão dos colegas vendedores', default_vendedor: false },
                 { key: 'exportar_dados', label: 'Exportar Dados', desc: 'Backup, exportação Excel', default_vendedor: false },
@@ -5069,13 +5069,15 @@ const APP = {
 
     // Check if current user has a specific permission
     // Gerentes/diretores sempre têm tudo. Vendedores usam permissoes do banco com defaults.
+    // Defaults para vendedor (igual ao backend _PERM_DEFAULTS_VENDEDOR):
+    // dashboard e compras liberados; resto bloqueado.
+    _permDefaultsVendedor: { ver_dashboard: true, ver_compras: true },
     hasPermission(key) {
         if (!this.user) return false;
         if (this.user.perfil === 'gerente' || this.user.perfil === 'diretor') return true;
         const perms = this.user.permissoes || {};
         if (perms[key] !== undefined) return perms[key];
-        // Defaults para vendedor — só ver_dashboard é true por padrão
-        return key === 'ver_dashboard';
+        return this._permDefaultsVendedor[key] || false;
     },
 
     async updateSugestao(id, status) {

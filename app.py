@@ -199,14 +199,16 @@ def gestor_required(f):
     return decorated
 
 
-# Defaults de permissão para vendedor — só ver_dashboard é liberado por padrão
+# Defaults de permissão para vendedor.
+# No ABMT todo vendedor também compra → ver_compras liberado por padrão.
+# Dados sensíveis de gestão (relatórios, margem, comissão de outros) ficam bloqueados.
 _PERM_DEFAULTS_VENDEDOR = {
     'ver_dashboard': True,
     'ver_relatorios': False,
     'ver_intelligence': False,
     'ver_pipeline': False,
     'ver_fechamento': False,
-    'ver_compras': False,
+    'ver_compras': True,
     'ver_margem': False,
     'ver_comissao_outros': False,
     'exportar_dados': False,
