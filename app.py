@@ -198,6 +198,59 @@ def gestor_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
+# Defaults de permissão para vendedor — só ver_dashboard é liberado por padrão
+_PERM_DEFAULTS_VENDEDOR = {
+    'ver_dashboard': True,
+    'ver_relatorios': False,
+    'ver_intelligence': False,
+    'ver_pipeline': False,
+    'ver_fechamento': False,
+    'ver_compras': False,
+    'ver_margem': False,
+    'ver_comissao_outros': False,
+    'exportar_dados': False,
+}
+
+
+def user_has_permission(key):
+    """Verifica se o usuário logado tem uma permissão.
+    Gerentes e diretores sempre têm tudo. Vendedores usam overrides + defaults.
+    """
+    perfil = session.get('perfil')
+    if perfil in ('gerente', 'diretor'):
+        return True
+    uid = session.get('user_id')
+    if not uid:
+        return False
+    try:
+        conn = _raw_get_db()
+        row = conn.execute("SELECT permissoes FROM users WHERE id=?", (uid,)).fetchone()
+        conn.close()
+        perms = json.loads(row['permissoes']) if row and row['permissoes'] else {}
+    except Exception:
+        perms = {}
+    if key in perms:
+        return bool(perms[key])
+    return _PERM_DEFAULTS_VENDEDOR.get(key, False)
+
+
+def permission_required(perm_key):
+    """Decorator: bloqueia endpoint se o usuário não tem a permissão.
+    Gerentes/diretores passam sempre."""
+    def wrapper(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'user_id' not in session:
+                return jsonify({'error': 'Não autenticado'}), 401
+            if session.get('must_change_password'):
+                return jsonify({'error': 'Troca de senha obrigatória', 'must_change_password': True}), 403
+            if not user_has_permission(perm_key):
+                return jsonify({'error': 'Você não tem permissão para acessar este recurso'}), 403
+            return f(*args, **kwargs)
+        return decorated
+    return wrapper
+
 def get_current_user():
     user = {
         'id': session.get('user_id'),
@@ -978,6 +1031,10 @@ def list_propostas():
     tipo = request.args.get('tipo', '')
     status = request.args.get('status', '')
     search = request.args.get('search', '')
+    # Bloqueia propostas de COMPRA para quem não tem permissão
+    if tipo == 'COMPRA' and not user_has_permission('ver_compras'):
+        conn.close()
+        return jsonify({'error': 'Você não tem permissão para acessar compras'}), 403
     # Vendedor SEMPRE vê só as suas — sem bypass por query param
     only_mine = 'true' if user['perfil'] == 'vendedor' else request.args.get('only_mine', 'false')
 
@@ -2002,7 +2059,7 @@ def update_ov_status(id):
 # ============ PURCHASE ORDERS (OC) ============
 
 @app.route('/api/ocs', methods=['GET'])
-@login_required
+@permission_required('ver_compras')
 def list_ocs():
     user = get_current_user()
     conn = get_db()
@@ -2043,7 +2100,7 @@ def list_ocs():
 
 
 @app.route('/api/ocs', methods=['POST'])
-@login_required
+@permission_required('ver_compras')
 def create_oc():
     data = request.json
     user = get_current_user()
@@ -2110,7 +2167,7 @@ def create_oc():
 
 
 @app.route('/api/ocs/<int:id>', methods=['GET'])
-@login_required
+@permission_required('ver_compras')
 def get_oc(id):
     conn = get_db()
     row = conn.execute("""SELECT oc.*, c.razao_social, c.nome_fantasia, c.cnpj_cpf,
@@ -2166,7 +2223,7 @@ def get_oc(id):
 
 
 @app.route('/api/ocs/<int:id>', methods=['PUT'])
-@login_required
+@permission_required('ver_compras')
 def update_oc(id):
     """Edit OC fields"""
     data = request.json
@@ -2208,7 +2265,7 @@ def update_oc(id):
 
 
 @app.route('/api/ocs/<int:id>/receber', methods=['PUT'])
-@login_required
+@permission_required('ver_compras')
 def receber_oc_item(id):
     """Update received quantity for OC item"""
     data = request.json
@@ -2242,7 +2299,7 @@ def receber_oc_item(id):
 
 
 @app.route('/api/ocs/<int:id>/status', methods=['PUT'])
-@login_required
+@permission_required('ver_compras')
 def update_oc_status(id):
     data = request.json
     user = get_current_user()
@@ -3159,7 +3216,7 @@ def _calc_qualitativo_logic(parcelas, data_emissao, valor_total):
 
 
 @app.route('/api/fechamento/<int:ano>/<int:mes>')
-@gestor_required
+@permission_required('ver_fechamento')
 def fechamento(ano, mes):
     conn = get_db()
     users = conn.execute("SELECT id, nome, perfil FROM users WHERE ativo=1").fetchall()
@@ -3506,7 +3563,7 @@ def reabrir_mes(ano, mes):
 
 
 @app.route('/api/fechamento/<int:ano>/<int:mes>/historico')
-@gestor_required
+@permission_required('ver_fechamento')
 def historico_fechamento(ano, mes):
     """Retorna histórico de auditoria do fechamento (quem fechou/reabriu, quando, motivo)."""
     tipo = request.args.get('tipo', 'geral')
@@ -3528,7 +3585,7 @@ def historico_fechamento(ano, mes):
 
 
 @app.route('/api/fechamento/<int:ano>/<int:mes>/export')
-@gestor_required
+@permission_required('exportar_dados')
 def export_fechamento(ano, mes):
     """Export fechamento as CSV"""
     import csv
@@ -3644,7 +3701,7 @@ def marcar_notificacoes_lidas():
 # ============ BACKUP ============
 
 @app.route('/api/backup/exportar')
-@gestor_required
+@permission_required('exportar_dados')
 def exportar_backup():
     if os.path.exists(DB_PATH):
         return send_file(DB_PATH, as_attachment=True, download_name='comercial_backup.db')
@@ -5171,7 +5228,7 @@ def dashboard_filtros():
 # ============ PIPELINE COMERCIAL ============
 
 @app.route('/api/pipeline')
-@gestor_required
+@permission_required('ver_pipeline')
 def pipeline_comercial():
     conn = get_db()
     hoje = datetime.now().strftime('%Y-%m-%d')
@@ -5529,7 +5586,7 @@ def _ia_ask_fallback(pergunta):
 # ============ ANALYTICS ============
 
 @app.route('/api/analytics/<int:ano>')
-@gestor_required
+@permission_required('ver_relatorios')
 def analytics_anual(ano):
     conn = get_db()
     ano_str = str(ano)
@@ -5631,7 +5688,7 @@ def analytics_anual(ano):
 # ============ QUARTERLY REPORT ============
 
 @app.route('/api/analytics/trimestre/<int:ano>/<int:trimestre>')
-@gestor_required
+@permission_required('ver_relatorios')
 def analytics_trimestral(ano, trimestre):
     if trimestre < 1 or trimestre > 4:
         return jsonify({'error': 'Trimestre deve ser 1-4'}), 400
@@ -6144,7 +6201,7 @@ def service_worker():
 # ============ ANALYTICS ESTADOS ============
 
 @app.route('/api/analytics/estados/<int:ano>')
-@gestor_required
+@permission_required('ver_relatorios')
 def analytics_estados(ano):
     conn = get_db()
 
@@ -6200,7 +6257,7 @@ def analytics_estados(ano):
 # ============ ANALYTICS MARGEM ============
 
 @app.route('/api/analytics/margem')
-@gestor_required
+@permission_required('ver_margem')
 @gestor_required
 def analytics_margem():
     """Margin analysis by category and seller"""
@@ -6274,7 +6331,7 @@ def analytics_margem():
 # ============ COMMERCIAL INTELLIGENCE ============
 
 @app.route('/api/intelligence')
-@gestor_required
+@permission_required('ver_intelligence')
 def commercial_intelligence():
     """Onda 4 — Inteligência Comercial completa para diretor/gestor"""
     conn = get_db()
