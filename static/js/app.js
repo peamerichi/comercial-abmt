@@ -3951,25 +3951,50 @@ const APP = {
     },
 
     // ===== FOLLOW-UPS =====
+    _followupVendedorFiltro: null,
+
     async renderFollowups() {
         const el = document.getElementById('page-content');
-        const data = await this.api('/api/followups');
+        const isGestor = this.user.perfil !== 'vendedor';
+        const url = isGestor && this._followupVendedorFiltro
+            ? `/api/followups?vendedor_id=${this._followupVendedorFiltro}`
+            : '/api/followups';
+        const data = await this.api(url);
         if (!data) return;
         const hoje = new Date().toISOString().split('T')[0];
+        const atrasados = data.items.filter(f => f.data_hora && f.data_hora.split(' ')[0] < hoje).length;
+
+        // Filtro por vendedor (só gestor, e só se houver equipe com follow-ups)
+        const filtroHtml = (isGestor && data.equipe && data.equipe.length > 0) ? `
+        <div class="dash-filters" style="margin-bottom:12px">
+            <span class="dash-filters-label">${LI('users',14)} Equipe:</span>
+            <select class="dash-filter-select" onchange="APP.filtrarFollowupsVendedor(this.value)">
+                <option value="">Todos (${data.items.length})</option>
+                ${data.equipe.map(v => `<option value="${v.id}" ${this._followupVendedorFiltro==v.id?'selected':''}>${sanitize(v.nome)}</option>`).join('')}
+            </select>
+            ${this._followupVendedorFiltro ? `<button class="btn btn-outline btn-sm" onclick="APP.filtrarFollowupsVendedor('')" style="font-size:11px">${LI('x',12)} Limpar</button>` : ''}
+        </div>` : '';
 
         el.innerHTML = `
         ${this.pageHeader(LI('bell',20)+' Follow-ups', 'dashboard', '<button class="btn btn-primary btn-sm" onclick="FORMS.renderFollowupForm()">+ Novo</button>')}
-        ${data.items.length === 0 ? `<div class="empty-state"><div class="empty-icon">${LI('bell',48)}</div><p>Nenhum follow-up pendente</p><p class="empty-hint">Otimo! Voce esta em dia com seus contatos</p></div>` :
+        ${atrasados > 0 ? `<div class="alert alert-danger" style="margin-bottom:12px">${LI('alert-triangle',16)} ${atrasados} follow-up(s) atrasado(s)</div>` : ''}
+        ${filtroHtml}
+        ${data.items.length === 0 ? `<div class="empty-state"><div class="empty-icon">${LI('bell',48)}</div><p>Nenhum follow-up pendente</p><p class="empty-hint">${isGestor ? 'A equipe está em dia com os contatos' : 'Otimo! Voce esta em dia com seus contatos'}</p></div>` :
             data.items.map(f => {
                 const atrasado = f.data_hora.split(' ')[0] < hoje;
                 return `<div class="list-item ${atrasado?'list-item-danger':''}">
                     <div class="list-item-content">
                         <div class="list-item-title">${atrasado?LI('alert-triangle',14)+' ':LI('clock',14)+' '}${sanitize(f.razao_social || 'Geral')} — ${sanitize(f.acao)}</div>
-                        <div class="list-item-sub">${this.formatDateTime(f.data_hora)}</div>
+                        <div class="list-item-sub">${this.formatDateTime(f.data_hora)}${isGestor && f.responsavel_nome ? ` · <span style="color:var(--accent)">${LI('users',11)} ${sanitize(f.responsavel_nome)}</span>` : ''}</div>
                     </div>
                     <button class="btn btn-success btn-sm" onclick="APP.concluirFollowup(${f.id});event.stopPropagation()">${LI('check',14)}</button>
                 </div>`;
             }).join('')}`;
+    },
+
+    filtrarFollowupsVendedor(vendedorId) {
+        this._followupVendedorFiltro = vendedorId || null;
+        this.renderFollowups();
     },
 
     async concluirFollowup(id) {

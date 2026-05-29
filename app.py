@@ -3051,13 +3051,38 @@ def list_followups():
     conn = get_db()
     hoje = datetime.now().strftime('%Y-%m-%d')
 
-    rows = conn.execute("""SELECT f.*, c.razao_social, c.nome_fantasia
-        FROM followups f LEFT JOIN cadastros c ON f.cadastro_id=c.id
-        WHERE f.user_id=? AND f.concluido=0
-        ORDER BY CASE WHEN date(f.data_hora)<? THEN 0 ELSE 1 END, f.data_hora""",
-        (user['id'], hoje)).fetchall()
+    if user['perfil'] == 'vendedor':
+        # Vendedor: só os próprios
+        rows = conn.execute("""SELECT f.*, c.razao_social, c.nome_fantasia, u.nome as responsavel_nome
+            FROM followups f
+            LEFT JOIN cadastros c ON f.cadastro_id=c.id
+            LEFT JOIN users u ON f.user_id=u.id
+            WHERE f.user_id=? AND f.concluido=0
+            ORDER BY CASE WHEN date(f.data_hora)<? THEN 0 ELSE 1 END, f.data_hora""",
+            (user['id'], hoje)).fetchall()
+        equipe = []
+    else:
+        # Gestor/diretor: vê os de toda a equipe, com filtro opcional por vendedor
+        filtro_vendedor = request.args.get('vendedor_id', type=int)
+        vend_clause = ""
+        params = []
+        if filtro_vendedor:
+            vend_clause = "AND f.user_id=?"
+            params.append(filtro_vendedor)
+        params.append(hoje)  # para o ORDER BY CASE WHEN date<?
+        rows = conn.execute(f"""SELECT f.*, c.razao_social, c.nome_fantasia, u.nome as responsavel_nome
+            FROM followups f
+            LEFT JOIN cadastros c ON f.cadastro_id=c.id
+            LEFT JOIN users u ON f.user_id=u.id
+            WHERE f.concluido=0 {vend_clause}
+            ORDER BY CASE WHEN date(f.data_hora)<? THEN 0 ELSE 1 END, f.data_hora""",
+            params).fetchall()
+        # Lista de vendedores com follow-ups pendentes (para o filtro no front)
+        equipe = [dict(r) for r in conn.execute("""SELECT DISTINCT u.id, u.nome
+            FROM followups f JOIN users u ON f.user_id=u.id
+            WHERE f.concluido=0 ORDER BY u.nome""").fetchall()]
     conn.close()
-    return jsonify({'items': [dict(r) for r in rows]})
+    return jsonify({'items': [dict(r) for r in rows], 'equipe': equipe})
 
 @app.route('/api/followups', methods=['POST'])
 @login_required
