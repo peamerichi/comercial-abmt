@@ -519,11 +519,27 @@ def _meu_dia_impl(user, conn):
 
     ov_vend_filter = vend_filter.replace('p.vendedor_id', 'ov.vendedor_id')
     ovs_mes = conn.execute(
-        f"""SELECT COUNT(*) as qtd, COALESCE(SUM(i.valor_total),0) as total
+        f"""SELECT COUNT(*) as qtd, COALESCE(SUM(i.valor_total),0) as total,
+            COALESCE(SUM(i.comissao_valor),0) as comissao
         FROM ordens_venda ov JOIN ov_items i ON i.ov_id = ov.id
         WHERE strftime('%m',ov.data_emissao)=? AND strftime('%Y',ov.data_emissao)=?
         AND ov.status != 'Cancelada' {ov_vend_filter}""",
         [f'{mes:02d}', str(ano)] + vend_params).fetchone()
+
+    # Conversão do mês: propostas convertidas vs criadas
+    props_convertidas = conn.execute(
+        f"SELECT COUNT(*) as c FROM propostas WHERE status='Convertida' AND strftime('%m',data_emissao)=? AND strftime('%Y',data_emissao)=? {vend_filter_raw}",
+        [f'{mes:02d}', str(ano)] + vend_params).fetchone()['c']
+    taxa_conversao = round(props_convertidas / props_mes * 100) if props_mes > 0 else 0
+
+    # Meta do mês (tabela metas) — chave mes no formato 'YYYY-MM'
+    mes_key = f'{ano}-{mes:02d}'
+    meta_row = conn.execute(
+        "SELECT meta_mensal, meta_semanal FROM metas WHERE user_id=? AND mes=?",
+        (user['id'], mes_key)).fetchone()
+    meta_mensal = meta_row['meta_mensal'] if meta_row else 0
+    meta_semanal = meta_row['meta_semanal'] if meta_row else 0
+    pct_meta = round(ovs_mes['total'] / meta_mensal * 100) if meta_mensal and meta_mensal > 0 else 0
 
     # 4. Recompra — clientes que passaram do ciclo
     recompra_rows = conn.execute(f"""
@@ -565,8 +581,14 @@ def _meu_dia_impl(user, conn):
         'propostas': propostas,
         'resumo_mes': {
             'propostas_criadas': props_mes,
+            'propostas_convertidas': props_convertidas,
+            'taxa_conversao': taxa_conversao,
             'ovs_qtd': ovs_mes['qtd'],
             'ovs_total': ovs_mes['total'],
+            'comissao_estimada': ovs_mes['comissao'],
+            'meta_mensal': meta_mensal,
+            'meta_semanal': meta_semanal,
+            'pct_meta': pct_meta,
             'mes': mes, 'ano': ano
         },
         'recompra': recompra[:10]

@@ -1828,33 +1828,69 @@ const APP = {
             </div>
         `).join('') : '<p class="text-muted" style="padding:12px">Nenhuma proposta pendente</p>';
 
-        const recompraHtml = data.recompra.length ? data.recompra.map(r => `
-            <div class="card-item" onclick="APP.navigate('cadastro_view',{id:${r.cadastro_id}})">
-                <div class="d-flex justify-content-between">
-                    <strong>${sanitize(r.nome)}</strong>
-                    <span class="badge badge-${r.nivel === 'risco' ? 'danger' : 'warning'}">${r.atraso_dias}d atraso</span>
+        const recompraHtml = data.recompra.length ? data.recompra.map(r => {
+            const fone = (r.whatsapp || '').replace(/\D/g, '');
+            const msg = encodeURIComponent(`Olá! Aqui é da ABMT. Notei que faz ${r.dias_sem_comprar} dias desde sua última compra — temos novidades em estoque. Posso te passar uma cotação?`);
+            return `
+            <div class="card-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div onclick="APP.navigate('cadastro_view',{id:${r.cadastro_id}})" style="cursor:pointer;flex:1">
+                        <strong>${sanitize(r.nome)}</strong>
+                        <div><small class="text-muted">Freq. média: ${r.frequencia_media}d · Sem comprar: ${r.dias_sem_comprar}d</small></div>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <span class="badge badge-${r.nivel === 'risco' ? 'danger' : 'warning'}">${r.atraso_dias}d atraso</span>
+                        ${fone ? `<a class="btn btn-sm btn-success" href="https://wa.me/55${fone}?text=${msg}" target="_blank" onclick="event.stopPropagation()" title="Chamar no WhatsApp">${LI('send',14)}</a>` : ''}
+                    </div>
                 </div>
-                <small class="text-muted">Freq. média: ${r.frequencia_media}d · Sem comprar: ${r.dias_sem_comprar}d</small>
-            </div>
-        `).join('') : '<p class="text-muted" style="padding:12px">Nenhum alerta de recompra</p>';
+            </div>`;
+        }).join('') : '<p class="text-muted" style="padding:12px">Nenhum alerta de recompra</p>';
 
         const rm = data.resumo_mes;
+        const fmt0 = v => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+        // Barra de meta — cor por faixa de atingimento
+        const pct = rm.pct_meta || 0;
+        const barCor = pct >= 100 ? 'var(--success)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
+        const falta = (rm.meta_mensal || 0) - (rm.ovs_total || 0);
+        const metaHtml = rm.meta_mensal > 0 ? `
+        <div class="card" style="margin-bottom:16px;padding:16px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+                <span style="font-weight:700;font-size:14px">${LI('target',16)} Meta do mês</span>
+                <span style="font-size:13px;color:var(--text-muted)">R$ ${fmt0(rm.ovs_total)} de R$ ${fmt0(rm.meta_mensal)}</span>
+            </div>
+            <div style="height:14px;background:var(--bg-input);border-radius:8px;overflow:hidden">
+                <div style="height:100%;width:${Math.min(pct,100)}%;background:${barCor};border-radius:8px;transition:width .4s"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px">
+                <strong style="color:${barCor}">${pct}% atingido</strong>
+                <span style="color:var(--text-muted)">${falta > 0 ? `faltam R$ ${fmt0(falta)}` : 'Meta batida! 🎉'}</span>
+            </div>
+        </div>` : `
+        <div class="card" style="margin-bottom:16px;padding:12px;text-align:center">
+            <small class="text-muted">${LI('target',14)} Nenhuma meta definida para o mês. Peça ao gestor para configurar.</small>
+        </div>`;
         el.innerHTML = `
         ${this.pageHeader(LI('sun',20)+' Meu Dia')}
-        <div class="stats-grid" style="grid-template-columns: repeat(3,1fr)">
-            <div class="stat-card">
-                <div class="stat-value">${rm.propostas_criadas}</div>
-                <div class="stat-label">Propostas no mês</div>
+        ${metaHtml}
+        <div class="stats-grid" style="grid-template-columns: repeat(4,1fr)">
+            <div class="stat-card stat-green">
+                <div class="stat-value">R$ ${fmt0(rm.ovs_total)}</div>
+                <div class="stat-label">Faturado no mês</div>
+            </div>
+            <div class="stat-card stat-orange">
+                <div class="stat-value">R$ ${fmt0(rm.comissao_estimada)}</div>
+                <div class="stat-label">Minha comissão (est.)</div>
+            </div>
+            <div class="stat-card stat-blue">
+                <div class="stat-value">${rm.taxa_conversao}%</div>
+                <div class="stat-label">Conversão (${rm.propostas_convertidas}/${rm.propostas_criadas})</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">${rm.ovs_qtd}</div>
-                <div class="stat-label">OVs no mês</div>
+                <div class="stat-label">Vendas no mês</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value">R$ ${Number(rm.ovs_total).toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-                <div class="stat-label">Faturado no mês</div>
-            </div>
-        </div>
+        </div>`;
+        el.innerHTML += `
 
         <div class="card" style="margin-top:16px">
             <div class="card-header d-flex justify-content-between align-items-center">
