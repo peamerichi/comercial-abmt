@@ -6954,11 +6954,23 @@ def commercial_intelligence():
 # ============ BACKUP SCHEDULER ============
 
 def backup_scheduler():
+    """Rede de segurança: a cada 10 min, snapshot local + upload pro GitHub
+    SE o banco mudou desde o último envio. Limita perda de dados a ~10 min
+    mesmo que algum gatilho de escrita falhe."""
+    last_mtime = 0
     while True:
-        time.sleep(6 * 3600)  # 6 hours
+        time.sleep(600)  # 10 minutos
         try:
-            do_backup()
-        except:
+            do_backup()  # cópia local rotativa
+        except Exception:
+            pass
+        try:
+            m = os.path.getmtime(DB_PATH) if os.path.exists(DB_PATH) else 0
+            if m != last_mtime:
+                from cloud_sync import force_upload
+                if force_upload(DB_PATH):
+                    last_mtime = m
+        except Exception:
             pass
 
 # ============ MAIN ============
@@ -6999,6 +7011,34 @@ def _trigger_cloud_backup():
         schedule_background_upload(DB_PATH, delay=5)
     except Exception:
         pass
+
+# === BACKUP FINAL AO DESLIGAR (deploys/restart do Render não perdem dados) ===
+import atexit as _atexit
+import signal as _signal
+
+def _flush_backup_on_exit(*_args):
+    """Sobe o estado atual do banco pro GitHub antes do processo morrer.
+    Render envia SIGTERM ao fazer deploy — assim o último estado é salvo."""
+    try:
+        from cloud_sync import force_upload
+        force_upload(DB_PATH)
+    except Exception:
+        pass
+
+_atexit.register(_flush_backup_on_exit)
+
+# Também tenta no SIGTERM (deploy do Render), preservando o handler anterior
+try:
+    _prev_sigterm = _signal.getsignal(_signal.SIGTERM)
+    def _on_sigterm(signum, frame):
+        _flush_backup_on_exit()
+        if callable(_prev_sigterm):
+            _prev_sigterm(signum, frame)
+        else:
+            raise SystemExit(0)
+    _signal.signal(_signal.SIGTERM, _on_sigterm)
+except Exception:
+    pass  # ambiente sem permissão de signal (ex: thread) — atexit cobre
 
 if __name__ == '__main__':
 
