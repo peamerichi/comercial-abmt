@@ -194,7 +194,7 @@ const APP = {
                 return;
             }
             this.renderApp();
-            this.navigate(this.user.perfil === 'vendedor' ? 'meu_dia' : 'dashboard');
+            this.navigate(this.hasPermission('ver_dashboard') ? 'dashboard' : 'meu_dia');
         } else {
             const err = document.getElementById('login-error');
             err.style.display = 'block';
@@ -232,7 +232,7 @@ const APP = {
         const res = await this.api('/api/change-password', { method: 'POST', body: { new_password: pwd } });
         if (res?.ok) {
             this.renderApp();
-            this.navigate(this.user.perfil === 'vendedor' ? 'meu_dia' : 'dashboard');
+            this.navigate(this.hasPermission('ver_dashboard') ? 'dashboard' : 'meu_dia');
         } else {
             err.style.display = 'block';
             err.textContent = res?.error || 'Erro ao alterar senha';
@@ -242,6 +242,7 @@ const APP = {
     // ===== APP SHELL =====
     renderApp() {
         const isGestor = this.user.perfil !== 'vendedor';
+        const can = (k) => this.hasPermission(k);
         document.getElementById('app').innerHTML = `
         <div class="sidebar" id="sidebar" aria-label="Menu principal">
             <div class="sidebar-header" style="cursor:pointer" onclick="APP.navigate('home')">
@@ -257,25 +258,27 @@ const APP = {
             </div>
             <nav class="sidebar-nav" role="navigation">
                 <div class="nav-section">PRINCIPAL</div>
-                <a class="nav-link active" data-page="dashboard" onclick="APP.navigate('dashboard')">${LI('layout-dashboard',16)} Dashboard</a>
+                ${can('ver_dashboard') ? `<a class="nav-link active" data-page="dashboard" onclick="APP.navigate('dashboard')">${LI('layout-dashboard',16)} Dashboard</a>` : ''}
                 <a class="nav-link" data-page="meu_dia" onclick="APP.navigate('meu_dia')">${LI('sun',16)} Meu Dia</a>
                 <div class="nav-section">VENDAS</div>
                 <a class="nav-link" data-page="vendas_propostas" onclick="APP.navigate('vendas_propostas')">${LI('file-text',16)} Propostas de Venda</a>
                 <a class="nav-link" data-page="vendas_ovs" onclick="APP.navigate('vendas_ovs')">${LI('package',16)} Ordens de Venda</a>
+                ${can('ver_compras') ? `
                 <div class="nav-section">COMPRAS</div>
                 <a class="nav-link" data-page="compras_propostas" onclick="APP.navigate('compras_propostas')">${LI('file-text',16)} Propostas de Compra</a>
                 <a class="nav-link" data-page="compras_ocs" onclick="APP.navigate('compras_ocs')">${LI('package',16)} Ordens de Compra</a>
+                ` : ''}
                 <div class="nav-section">OPERACIONAL</div>
                 <a class="nav-link" data-page="cadastros" onclick="APP.navigate('cadastros')">${LI('users',16)} Clientes</a>
                 <a class="nav-link" data-page="followups" onclick="APP.navigate('followups')">${LI('bell',16)} Follow-ups</a>
                 <a class="nav-link" data-page="notas" onclick="APP.navigate('notas')">${LI('sticky-note',16)} Notas</a>
-                ${isGestor ? `
+                ${(can('ver_pipeline') || can('ver_fechamento') || can('ver_relatorios') || can('ver_intelligence') || isGestor) ? `
                 <div class="nav-section">GESTÃO</div>
-                <a class="nav-link" data-page="pipeline" onclick="APP.navigate('pipeline')">${LI('target',16)} Pipeline Comercial</a>
-                <a class="nav-link" data-page="fechamento" onclick="APP.navigate('fechamento')">${LI('clipboard',16)} Fechamento</a>
-                <a class="nav-link" data-page="relatorios" onclick="APP.navigate('relatorios')">${LI('trending-up',16)} Relatórios</a>
-                <a class="nav-link" data-page="inteligencia" onclick="APP.navigate('inteligencia')">${LI('brain',16)} Inteligência Comercial</a>
-                <a class="nav-link" data-page="config" onclick="APP.navigate('config')">${LI('settings',16)} Configurações</a>
+                ${can('ver_pipeline') ? `<a class="nav-link" data-page="pipeline" onclick="APP.navigate('pipeline')">${LI('target',16)} Pipeline Comercial</a>` : ''}
+                ${can('ver_fechamento') ? `<a class="nav-link" data-page="fechamento" onclick="APP.navigate('fechamento')">${LI('clipboard',16)} Fechamento</a>` : ''}
+                ${can('ver_relatorios') ? `<a class="nav-link" data-page="relatorios" onclick="APP.navigate('relatorios')">${LI('trending-up',16)} Relatórios</a>` : ''}
+                ${can('ver_intelligence') ? `<a class="nav-link" data-page="inteligencia" onclick="APP.navigate('inteligencia')">${LI('brain',16)} Inteligência Comercial</a>` : ''}
+                ${isGestor ? `<a class="nav-link" data-page="config" onclick="APP.navigate('config')">${LI('settings',16)} Configurações</a>` : ''}
                 ` : ''}
                 <div class="nav-section" style="margin-top:8px">AJUDA</div>
                 <a class="nav-link" data-page="guia" onclick="APP.navigate('guia')">${LI('book-open',16)} Guia do Vendedor</a>
@@ -307,9 +310,9 @@ const APP = {
             <div class="content" id="page-content" role="main"></div>
         </div>
         <nav class="nav-bottom">
-            <div class="nav-item" data-page="dashboard" onclick="APP.navigate('dashboard')"><span class="icon">${LI('layout-dashboard',20)}</span>Início</div>
-            <div class="nav-item" data-page="vendas" onclick="APP.navigate('vendas')"><span class="icon">${LI('upload',20)}</span>Vendas</div>
-            <div class="nav-item" data-page="compras" onclick="APP.navigate('compras')"><span class="icon">${LI('download',20)}</span>Compras</div>
+            ${can('ver_dashboard') ? `<div class="nav-item" data-page="dashboard" onclick="APP.navigate('dashboard')"><span class="icon">${LI('layout-dashboard',20)}</span>Início</div>` : `<div class="nav-item" data-page="meu_dia" onclick="APP.navigate('meu_dia')"><span class="icon">${LI('sun',20)}</span>Meu Dia</div>`}
+            <div class="nav-item" data-page="vendas_propostas" onclick="APP.navigate('vendas_propostas')"><span class="icon">${LI('upload',20)}</span>Vendas</div>
+            ${can('ver_compras') ? `<div class="nav-item" data-page="compras_propostas" onclick="APP.navigate('compras_propostas')"><span class="icon">${LI('download',20)}</span>Compras</div>` : `<div class="nav-item" data-page="followups" onclick="APP.navigate('followups')"><span class="icon">${LI('bell',20)}</span>Follow-ups</div>`}
             <div class="nav-item" data-page="cadastros" onclick="APP.navigate('cadastros')"><span class="icon">${LI('users',20)}</span>Clientes</div>
             <div class="nav-item" data-page="notas" onclick="APP.navigate('notas')"><span class="icon">${LI('list',20)}</span>Mais</div>
         </nav>
@@ -364,6 +367,25 @@ const APP = {
         // Check for unsaved form changes before navigating away
         if (this._formDirty && !this.checkDirtyForm()) return;
         if (this._dashTimestampInterval) { clearInterval(this._dashTimestampInterval); this._dashTimestampInterval = null; }
+        // Permission gate — block direct navigation to restricted pages
+        const pagePermMap = {
+            dashboard: 'ver_dashboard',
+            relatorios: 'ver_relatorios',
+            inteligencia: 'ver_intelligence',
+            pipeline: 'ver_pipeline',
+            fechamento: 'ver_fechamento',
+            compras: 'ver_compras',
+            compras_propostas: 'ver_compras',
+            compras_ocs: 'ver_compras',
+            oc_form: 'ver_compras',
+            oc_view: 'ver_compras',
+        };
+        const requiredPerm = pagePermMap[page];
+        if (requiredPerm && !this.hasPermission(requiredPerm)) {
+            this.toast('Você não tem permissão para acessar esta página', 'error');
+            return;
+        }
+
         if (!skipHistory && (this.currentPage !== page || Object.keys(params).length > 0)) {
             this.history.push({ page: this.currentPage, params: {} });
         }
