@@ -118,7 +118,10 @@ const APP = {
             const timer = setTimeout(() => controller.abort(), timeout);
             const res = await fetch(url, options);
             clearTimeout(timer);
-            if (res.status === 401) { this.user = null; this.renderLogin(); return null; }
+            // 401 em endpoints de auth (login/troca de senha) NÃO é sessão expirada —
+            // é credencial inválida. Deixa o handler da tela tratar a mensagem real.
+            const isAuthEndpoint = url.includes('/api/login') || url.includes('/api/change-password');
+            if (res.status === 401 && !isAuthEndpoint) { this.user = null; this.renderLogin(); return null; }
             return await res.json();
         } catch (e) {
             if (e.name === 'AbortError') {
