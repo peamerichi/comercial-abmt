@@ -68,10 +68,11 @@ app.secret_key = _get_or_create_secret()
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB max upload
 
-# Rate limiting para login — máximo 5 tentativas por IP em 15 minutos
-_login_attempts = {}  # {ip: [(timestamp, ...),]}
-_LOGIN_MAX = 5
-_LOGIN_WINDOW = 900  # 15 min em segundos
+# Rate limiting para login — por (IP + usuário), não por IP global.
+# Assim errar a senha de um usuário não bloqueia o login de outro no mesmo IP.
+_login_attempts = {}  # {(ip, username): [timestamp, ...]}
+_LOGIN_MAX = 10        # tentativas antes de bloquear (mais tolerante ao uso normal)
+_LOGIN_WINDOW = 600    # janela de 10 min
 _login_lock = threading.Lock()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -288,25 +289,27 @@ def get_csrf():
 def login():
     ip = request.remote_addr or '0.0.0.0'
     now = time.time()
+    data = request.json or {}
+    username = (data.get('username', '') or '').strip().lower()
+    key = (ip, username)
 
-    # Limpar tentativas expiradas e checar limite
+    # Limpar tentativas expiradas e checar limite — por (IP + usuário)
     with _login_lock:
-        attempts = _login_attempts.get(ip, [])
-        attempts = [t for t in attempts if now - t < _LOGIN_WINDOW]
-        _login_attempts[ip] = attempts
+        attempts = [t for t in _login_attempts.get(key, []) if now - t < _LOGIN_WINDOW]
+        _login_attempts[key] = attempts
         if len(attempts) >= _LOGIN_MAX:
             wait = int(_LOGIN_WINDOW - (now - attempts[0]))
-            return jsonify({'error': f'Muitas tentativas. Tente novamente em {wait}s.'}), 429
+            minutos = max(1, round(wait / 60))
+            return jsonify({'error': f'Muitas tentativas para este usuário. Tente em ~{minutos} min ou peça ao gestor para redefinir sua senha.'}), 429
 
-    data = request.json
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE username=? AND ativo=1",
                         (data.get('username', ''),)).fetchone()
     conn.close()
     if user and check_password_hash(user['password_hash'], data.get('password', '')):
-        # Login OK — limpar tentativas deste IP
+        # Login OK — limpar tentativas deste usuário/IP
         with _login_lock:
-            _login_attempts.pop(ip, None)
+            _login_attempts.pop(key, None)
         session.clear()
         session.permanent = True
         session['user_id'] = user['id']
@@ -321,9 +324,9 @@ def login():
             'must_change_password': bool(user['must_change_password']) if 'must_change_password' in user.keys() else False
         })
 
-    # Login falhou — registrar tentativa
+    # Login falhou — registrar tentativa (por IP + usuário)
     with _login_lock:
-        _login_attempts.setdefault(ip, []).append(now)
+        _login_attempts.setdefault(key, []).append(now)
     return jsonify({'error': 'Usuário ou senha inválidos'}), 401
 
 
@@ -4279,7 +4282,8 @@ def update_user(id):
             fields.append(f"{col}=?")
             values.append(data[col])
 
-    if data.get('password'):
+    reset_senha = bool(data.get('password'))
+    if reset_senha:
         fields.append("password_hash=?")
         values.append(generate_password_hash(data['password']))
 
@@ -4289,8 +4293,17 @@ def update_user(id):
 
     values.append(id)
     conn.execute(f"UPDATE users SET {', '.join(fields)} WHERE id=?", values)
+    # Pega o username pra limpar eventual bloqueio de login ao resetar senha/reativar
+    uname = conn.execute("SELECT username FROM users WHERE id=?", (id,)).fetchone()
     conn.commit()
     conn.close()
+
+    # Ao redefinir senha ou reativar, limpa qualquer bloqueio de tentativas desse usuário
+    if uname and (reset_senha or ('ativo' in data and int(data.get('ativo', 0)) == 1)):
+        uname_l = (uname['username'] or '').strip().lower()
+        with _login_lock:
+            for k in [k for k in _login_attempts if k[1] == uname_l]:
+                _login_attempts.pop(k, None)
     return jsonify({'ok': True})
 
 
