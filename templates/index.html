@@ -3,26 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#08090d">
+    <meta name="theme-color" content="#0a0d14">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>ABMT Comercial</title>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="stylesheet" href="/static/css/style.css?v=52">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=53">
+    <link rel="stylesheet" href="/static/css/theme-2026.css?v=2">
     <link rel="manifest" href="/manifest.json">
 </head>
 <body>
 <div id="app">
-    <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px">
-        <div style="font-size:28px;font-weight:700;color:#7c5dfa">ABMT</div>
-        <div style="width:32px;height:32px;border:3px solid rgba(124,93,250,.2);border-top-color:#7c5dfa;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;background:#0a0d14">
+        <div style="font-size:30px;font-weight:700;font-family:'Space Grotesk',sans-serif;color:#4f8cff">ABMT</div>
+        <div style="width:32px;height:32px;border:3px solid rgba(79,140,255,.2);border-top-color:#4f8cff;border-radius:50%;animation:spin 0.8s linear infinite"></div>
         <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     </div>
 </div>
 
-<script src="/static/js/app.js?v=52"></script>
-<script src="/static/js/forms.js?v=52"></script>
+<script src="/static/js/app.js?v=53"></script>
+<script src="/static/js/forms.js?v=53"></script>
 <script>
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').then(reg => {

@@ -17,3 +17,8 @@ flask.log
 flask_log.txt
 *.docx
 *.xlsx
+
+# Local preview helpers (not for production)
+run_preview.py
+.claude/launch.json
+mockups/

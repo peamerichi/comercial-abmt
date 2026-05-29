@@ -1,0 +1,223 @@
+/* ===========================================================
+   ABMT — Tema 2026 (camada visual sobre style.css)
+   Glassmorphism grafite + azul elétrico · Space Grotesk
+   Só visual. Não altera layout/funcionalidade.
+   Escopo: aplica só no tema ESCURO. No claro, cai no style.css original.
+   Remover o <link> reverte tudo.
+   =========================================================== */
+
+/* ---- Paleta nova (só quando NÃO está em light) ---- */
+:root:not([data-theme="light"]){
+  --bg-primary:#0a0d14;
+  --bg-secondary:#0d111a;
+  --bg-card:rgba(255,255,255,.045);
+  --bg-input:rgba(255,255,255,.05);
+  --bg-hover:rgba(255,255,255,.05);
+  --text-primary:#eef2f9;
+  --text-secondary:#9aa6bd;
+  --text-muted:#5d6781;
+  --accent:#3b82f6;
+  --accent-hover:#4f8cff;
+  --accent-dim:rgba(59,130,246,.14);
+  --color-primary:#3b82f6;
+  --success:#2dd4a7;--color-success:#2dd4a7;
+  --warning:#fbbf24;--color-warning:#fbbf24;
+  --danger:#fb6a6a;--color-danger:#fb6a6a;
+  --border:rgba(255,255,255,.09);
+  --border-color:rgba(255,255,255,.09);
+  --radius:18px;--radius-sm:12px;--radius-md:16px;--radius-lg:22px;
+  --glass:rgba(255,255,255,.05);
+  --glass-strong:rgba(255,255,255,.08);
+  --glass-border:rgba(255,255,255,.09);
+  --gradient-accent:linear-gradient(135deg,#4f8cff,#1e40af);
+  --display:'Space Grotesk','Inter',-apple-system,sans-serif;
+  --shadow:0 16px 50px rgba(0,0,0,.4);
+  --shadow-md:0 12px 36px rgba(0,0,0,.32);
+}
+
+/* ---- Fundo aurora (só no escuro) ---- */
+html:not([data-theme="light"]) body{ background:#0a0d14; position:relative; }
+html:not([data-theme="light"]) body::before{
+  content:''; position:fixed; inset:-30%; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(40% 40% at 18% 12%, rgba(59,130,246,.18), transparent 60%),
+    radial-gradient(34% 34% at 86% 18%, rgba(99,102,241,.13), transparent 60%),
+    radial-gradient(46% 46% at 78% 92%, rgba(45,212,167,.08), transparent 60%);
+  filter:blur(34px);
+  animation:abmt-drift 22s ease-in-out infinite alternate;
+}
+@keyframes abmt-drift{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-3%,2%) scale(1.07)}}
+@media (prefers-reduced-motion: reduce){
+  html:not([data-theme="light"]) body::before{ animation:none; }
+}
+
+/* números financeiros alinhados (ambos os temas, é só typographic) */
+.kpi-value,.stat-value,.ranking-value,.mini-stat-value,.detail-value{
+  font-variant-numeric:tabular-nums; font-feature-settings:'tnum';
+}
+
+/* ---- Tipografia display (ambos os temas — só fonte) ---- */
+.sidebar-logo,.dash-header h2,.page-header h1,.page-title,
+.kpi-value,.stat-value,.mini-stat-value,.ranking-value,
+.ranking-pos,.modal-title,.login-logo{
+  font-family:'Space Grotesk','Inter',sans-serif; letter-spacing:-.02em;
+}
+.kpi-value,.stat-value{ font-weight:600; }
+
+/* =====================================================
+   A PARTIR DAQUI: só no tema ESCURO (html:not light)
+   ===================================================== */
+
+/* Sidebar de vidro flutuante */
+html:not([data-theme="light"]) .sidebar{
+  background:rgba(255,255,255,.05);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--glass-border);
+  border-radius:24px; inset:14px auto 14px 14px; height:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.42);
+}
+html:not([data-theme="light"]) .sidebar-logo{
+  background:linear-gradient(135deg,#fff,#9ec1ff);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+html:not([data-theme="light"]) .sidebar-header,
+html:not([data-theme="light"]) .sidebar-user{ border-color:var(--glass-border); }
+
+/* nav: ícone em squircle, ativo com gradiente */
+html:not([data-theme="light"]) .nav-link{ border-radius:13px; gap:11px; padding:8px 11px; margin:1px 0; font-weight:500; transition:.2s; }
+html:not([data-theme="light"]) .nav-link svg{
+  width:32px; height:32px; padding:7.5px; border-radius:10px;
+  background:rgba(255,255,255,.05); box-sizing:border-box; margin-right:0; stroke-width:1.9; transition:.2s;
+}
+html:not([data-theme="light"]) .nav-link:hover{ background:rgba(255,255,255,.05); }
+html:not([data-theme="light"]) .nav-link.active{ background:transparent; color:#fff; font-weight:600; position:relative; }
+html:not([data-theme="light"]) .nav-link.active svg{
+  background:linear-gradient(135deg,#3b82f6,#1e40af); color:#fff; box-shadow:0 4px 14px rgba(59,130,246,.5);
+}
+html:not([data-theme="light"]) .nav-link.active::before{
+  content:''; position:absolute; left:-13px; top:50%; transform:translateY(-50%);
+  width:3px; height:20px; background:var(--accent-hover); border-radius:3px; box-shadow:0 0 12px var(--accent-hover);
+}
+html:not([data-theme="light"]) .avatar{ background:var(--gradient-accent); font-weight:600; border-radius:10px; }
+
+/* conteúdo deslocado pela sidebar flutuante (desktop) */
+@media(min-width:993px){
+  html:not([data-theme="light"]) .main-area{ margin-left:calc(var(--sidebar-width) + 20px); }
+}
+
+/* Topbar de vidro */
+html:not([data-theme="light"]) .topbar{
+  background:rgba(13,17,26,.55); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--glass-border);
+}
+html:not([data-theme="light"]) .topbar-search{ background:rgba(255,255,255,.05); border:1px solid var(--glass-border); border-radius:13px; }
+html:not([data-theme="light"]) .badge-btn{ border-radius:12px; background:rgba(255,255,255,.05); border:1px solid var(--glass-border); }
+
+/* Cards: fundo translúcido SÓLIDO (sem blur — leve no mobile) */
+html:not([data-theme="light"]) .card,
+html:not([data-theme="light"]) .stat-card,
+html:not([data-theme="light"]) .kpi-card{
+  background:rgba(255,255,255,.045);
+  border:1px solid var(--glass-border);
+  border-radius:var(--radius);
+}
+html:not([data-theme="light"]) .card:hover,
+html:not([data-theme="light"]) .kpi-card:hover,
+html:not([data-theme="light"]) .stat-card:hover{
+  transform:translateY(-3px); box-shadow:0 18px 44px rgba(0,0,0,.32); border-color:rgba(255,255,255,.14);
+}
+
+/* Entrada animada SÓ nos KPIs/stats do dashboard (não em listas) */
+html:not([data-theme="light"]) .kpi-card,
+html:not([data-theme="light"]) .stat-card{
+  animation:abmt-up .5s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes abmt-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+html:not([data-theme="light"]) .kpi-grid .kpi-card:nth-child(2){animation-delay:.06s}
+html:not([data-theme="light"]) .kpi-grid .kpi-card:nth-child(3){animation-delay:.12s}
+html:not([data-theme="light"]) .kpi-grid .kpi-card:nth-child(4){animation-delay:.18s}
+@media (prefers-reduced-motion: reduce){
+  html:not([data-theme="light"]) .kpi-card,
+  html:not([data-theme="light"]) .stat-card{ animation:none; }
+}
+
+/* título do card com ícone em squircle */
+html:not([data-theme="light"]) .card-title{ font-size:14.5px; font-weight:650; display:inline-flex; align-items:center; gap:10px; }
+html:not([data-theme="light"]) .card-title svg{
+  width:30px; height:30px; padding:7px; border-radius:9px;
+  background:rgba(255,255,255,.08); color:var(--text-secondary); box-sizing:border-box; margin-right:0; stroke-width:1.9;
+}
+
+html:not([data-theme="light"]) .kpi-card{ overflow:hidden; }
+html:not([data-theme="light"]) .kpi-card::before{ height:3px; opacity:.95; }
+html:not([data-theme="light"]) .kpi-label{ letter-spacing:.06em; }
+html:not([data-theme="light"]) .kpi-value{ font-size:28px; }
+html:not([data-theme="light"]) .stat-value{ font-size:24px; }
+html:not([data-theme="light"]) .stat-card.stat-orange{ border-left:3px solid var(--warning); }
+
+/* Botões */
+html:not([data-theme="light"]) .btn{ border-radius:12px; }
+html:not([data-theme="light"]) .btn-primary{
+  background:linear-gradient(135deg,#3b82f6,#2563eb); border:none; color:#fff; font-weight:600;
+  box-shadow:0 6px 20px rgba(59,130,246,.4);
+}
+html:not([data-theme="light"]) .btn-primary:hover{ box-shadow:0 8px 28px rgba(59,130,246,.6); opacity:1; }
+html:not([data-theme="light"]) .btn-outline{ background:rgba(255,255,255,.05); border:1px solid var(--glass-border); }
+html:not([data-theme="light"]) .btn-outline:hover{ border-color:rgba(79,140,255,.45); }
+
+/* Cabeçalho do dashboard */
+html:not([data-theme="light"]) .dash-header h2{
+  background:linear-gradient(135deg,#fff,#aab8d4);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; font-weight:600;
+}
+html:not([data-theme="light"]) .dash-live-badge{ background:rgba(45,212,167,.15); color:var(--success); border:1px solid rgba(45,212,167,.25); }
+
+/* Abas / segmented */
+html:not([data-theme="light"]) .dash-tabs,
+html:not([data-theme="light"]) .tabs{ background:rgba(255,255,255,.05); border:1px solid var(--glass-border); border-radius:13px; padding:4px; }
+html:not([data-theme="light"]) .dash-tab,
+html:not([data-theme="light"]) .tab{ border-radius:9px; font-weight:600; }
+html:not([data-theme="light"]) .dash-tab.active,
+html:not([data-theme="light"]) .tab.active{
+  background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; box-shadow:0 4px 16px rgba(59,130,246,.4);
+}
+
+/* Rankings */
+html:not([data-theme="light"]) .ranking-item{ border-radius:12px; }
+html:not([data-theme="light"]) .ranking-item:hover{ background:rgba(255,255,255,.05); }
+html:not([data-theme="light"]) .ranking-pos{ border-radius:9px; background:rgba(255,255,255,.08); }
+
+/* Filtros / inputs */
+html:not([data-theme="light"]) .dash-filter-select,
+html:not([data-theme="light"]) .form-control,
+html:not([data-theme="light"]) .form-select{ background:rgba(255,255,255,.05); border:1px solid var(--glass-border); border-radius:11px; }
+
+/* Bottom nav mobile */
+html:not([data-theme="light"]) .nav-bottom{
+  background:rgba(13,17,26,.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  border-top:1px solid var(--glass-border);
+}
+html:not([data-theme="light"]) .nav-item.active{ color:var(--accent-hover); }
+
+/* Modais de vidro */
+html:not([data-theme="light"]) .modal{
+  background:rgba(16,20,30,.92); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border); border-radius:22px;
+}
+html:not([data-theme="light"]) .modal-overlay{ background:rgba(5,7,12,.6); }
+
+/* Alertas */
+html:not([data-theme="light"]) .alert{ border-radius:13px; }
+
+/* FAB assistente */
+html:not([data-theme="light"]) .assistente-fab{ background:linear-gradient(135deg,#3b82f6,#1e40af); box-shadow:0 8px 28px rgba(59,130,246,.5); }
+
+/* Login premium */
+html:not([data-theme="light"]) .login-card{
+  background:rgba(255,255,255,.05); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border); border-radius:24px; box-shadow:0 30px 80px rgba(0,0,0,.5);
+}
+html:not([data-theme="light"]) .login-logo{
+  background:linear-gradient(135deg,#4f8cff,#9ec1ff);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}

@@ -1,7 +1,8 @@
-const CACHE_NAME = 'abmt-comercial-v81';
+const CACHE_NAME = 'abmt-comercial-v82';
 const ASSETS = [
     '/',
     '/static/css/style.css',
+    '/static/css/theme-2026.css',
     '/static/js/app.js',
     '/static/js/forms.js',
     '/manifest.json'
