@@ -4601,8 +4601,9 @@ const APP = {
                             <td style="padding:10px 8px;text-align:center">
                                 <span class="status-tag status-${u.ativo?'aprovada':'perdida'}" style="cursor:pointer" onclick="APP.toggleUserAtivo(${u.id},${u.ativo?0:1})">${u.ativo?'Ativo':'Inativo'}</span>
                             </td>
-                            <td style="padding:10px 8px;text-align:right">
-                                <button class="btn btn-outline btn-sm" onclick="APP.showResetPassword(${u.id},${JSON.stringify(sanitize(u.nome))})">${LI("settings",14)}</button>
+                            <td style="padding:10px 8px;text-align:right;white-space:nowrap">
+                                <button class="btn btn-outline btn-sm" title="Redefinir senha" onclick="APP.showResetPassword(${u.id},${JSON.stringify(sanitize(u.nome))})">${LI("settings",14)}</button>
+                                ${u.id !== this.user.id ? `<button class="btn btn-outline btn-sm" title="Excluir usuário" style="color:var(--danger);margin-left:4px" onclick="APP.excluirUsuario(${u.id},${JSON.stringify(sanitize(u.nome))})">${LI("x",14)}</button>` : ''}
                             </td>
                         </tr>`).join('')}
                     </tbody>
@@ -4895,6 +4896,24 @@ const APP = {
         if (!pw) return;
         const res = await this.api(`/api/users/${id}`, { method: 'PUT', body: { password: pw } });
         if (res?.ok) this.toast('Senha alterada!', 'success');
+    },
+
+    async excluirUsuario(id, nome) {
+        if (!await this.confirm(`Excluir o usuário "${nome}"? Esta ação é permanente.`)) return;
+        const res = await this.api(`/api/users/${id}`, { method: 'DELETE' });
+        if (res?.ok) {
+            this.toast('Usuário excluído', 'success');
+            this.renderConfig();
+        } else if (res?.has_history) {
+            // Tem histórico — oferecer desativar em vez de excluir
+            const desativar = await this.confirm(`${res.error}<br><br>Deseja DESATIVAR o usuário em vez de excluir? Ele perde acesso mas os registros ficam preservados.`);
+            if (desativar) {
+                const r2 = await this.api(`/api/users/${id}`, { method: 'PUT', body: { ativo: 0 } });
+                if (r2?.ok) { this.toast('Usuário desativado', 'success'); this.renderConfig(); }
+            }
+        } else if (res?.error) {
+            this.toast(res.error, 'danger');
+        }
     },
 
     async salvarMeta(userId, mes) {

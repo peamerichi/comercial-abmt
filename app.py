@@ -3989,7 +3989,13 @@ def consulta_cnpj(cnpj):
 @app.route('/api/users', methods=['GET'])
 @login_required
 def list_users():
+    user = get_current_user()
     conn = get_db()
+    # Vendedor recebe apenas id+nome (para dropdowns), sem perfil/permissões/login
+    if user['perfil'] == 'vendedor':
+        rows = conn.execute("SELECT id, nome FROM users WHERE ativo=1").fetchall()
+        conn.close()
+        return jsonify({'items': [dict(r) for r in rows]})
     rows = conn.execute("SELECT id, username, nome, perfil, ativo, permissoes FROM users").fetchall()
     conn.close()
     items = []
@@ -4065,10 +4071,28 @@ def update_user(id):
     data = request.json
     conn = get_db()
 
-    user = conn.execute("SELECT id FROM users WHERE id=?", (id,)).fetchone()
+    current = get_current_user()
+    user = conn.execute("SELECT id, perfil, ativo FROM users WHERE id=?", (id,)).fetchone()
     if not user:
         conn.close()
         return jsonify({'error': 'Usuário não encontrado'}), 404
+
+    # Proteção: desativar a si mesmo
+    if 'ativo' in data and int(data['ativo']) == 0 and id == current['id']:
+        conn.close()
+        return jsonify({'error': 'Você não pode desativar o próprio usuário'}), 400
+
+    # Proteção: desativar ou rebaixar o último diretor ativo
+    if user['perfil'] == 'diretor':
+        vai_desativar = 'ativo' in data and int(data['ativo']) == 0
+        vai_rebaixar = 'perfil' in data and data['perfil'] != 'diretor'
+        if vai_desativar or vai_rebaixar:
+            outros = conn.execute(
+                "SELECT COUNT(*) as c FROM users WHERE perfil='diretor' AND ativo=1 AND id != ?", (id,)
+            ).fetchone()['c']
+            if outros == 0:
+                conn.close()
+                return jsonify({'error': 'Não é possível desativar/rebaixar o último diretor ativo'}), 400
 
     fields = []
     values = []
@@ -4094,12 +4118,62 @@ def update_user(id):
 
 @app.route('/api/users/<int:id>', methods=['DELETE'])
 @gestor_required
-def deactivate_user(id):
+def delete_user(id):
+    """Exclui um usuário DE VERDADE — apenas se não tiver histórico.
+    Se tiver propostas/OVs/OCs vinculadas, retorna erro orientando a desativar.
+    Proteções: não permite excluir a si mesmo nem o último diretor ativo.
+    """
+    current = get_current_user()
     conn = get_db()
-    conn.execute("UPDATE users SET ativo=0 WHERE id=?", (id,))
-    conn.commit()
-    conn.close()
-    return jsonify({'ok': True})
+    try:
+        user = conn.execute("SELECT id, nome, perfil, ativo FROM users WHERE id=?", (id,)).fetchone()
+        if not user:
+            return jsonify({'error': 'Usuário não encontrado'}), 404
+
+        # Proteção 1: não pode excluir a si mesmo
+        if id == current['id']:
+            return jsonify({'error': 'Você não pode excluir o próprio usuário'}), 400
+
+        # Proteção 2: não pode excluir o último diretor ativo
+        if user['perfil'] == 'diretor':
+            outros_diretores = conn.execute(
+                "SELECT COUNT(*) as c FROM users WHERE perfil='diretor' AND ativo=1 AND id != ?", (id,)
+            ).fetchone()['c']
+            if outros_diretores == 0:
+                return jsonify({'error': 'Não é possível excluir o último diretor ativo'}), 400
+
+        # Proteção 3: verifica histórico — se tiver, não exclui (orienta desativar)
+        n_propostas = conn.execute("SELECT COUNT(*) as c FROM propostas WHERE vendedor_id=?", (id,)).fetchone()['c']
+        n_ovs = conn.execute("SELECT COUNT(*) as c FROM ordens_venda WHERE vendedor_id=?", (id,)).fetchone()['c']
+        n_ocs = conn.execute("SELECT COUNT(*) as c FROM ordens_compra WHERE comprador_id=?", (id,)).fetchone()['c']
+        n_cadastros = conn.execute("SELECT COUNT(*) as c FROM cadastros WHERE vendedor_responsavel_id=?", (id,)).fetchone()['c']
+        total_hist = n_propostas + n_ovs + n_ocs + n_cadastros
+        if total_hist > 0:
+            detalhes = []
+            if n_propostas: detalhes.append(f"{n_propostas} proposta(s)")
+            if n_ovs: detalhes.append(f"{n_ovs} OV(s)")
+            if n_ocs: detalhes.append(f"{n_ocs} OC(s)")
+            if n_cadastros: detalhes.append(f"{n_cadastros} cliente(s)")
+            return jsonify({
+                'error': f'Usuário tem histórico ({", ".join(detalhes)}). Não pode ser excluído — use "Desativar" para preservar os registros.',
+                'has_history': True
+            }), 409
+
+        # Sem histórico — exclui de verdade e limpa dados auxiliares
+        conn.execute("DELETE FROM metas WHERE user_id=?", (id,))
+        conn.execute("DELETE FROM notas WHERE user_id=?", (id,))
+        conn.execute("DELETE FROM followups WHERE user_id=?", (id,))
+        conn.execute("DELETE FROM users WHERE id=?", (id,))
+        conn.execute("INSERT INTO audit_log (user_id, acao, entidade_tipo, entidade_id, detalhes) VALUES (?,?,?,?,?)",
+                     (current['id'], 'excluir', 'usuario', id, f"Excluiu usuário {user['nome']}"))
+        conn.commit()
+        return jsonify({'ok': True, 'deleted': True})
+    except Exception as e:
+        conn.rollback()
+        app.logger.exception('Erro ao excluir usuário')
+        return jsonify({'error': 'Erro interno ao excluir usuário'}), 500
+    finally:
+        conn.close()
 
 
 # ============ METAS ============
