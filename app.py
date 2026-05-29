@@ -1128,6 +1128,13 @@ def create_proposta():
         for i, item in enumerate(data.get('items', [])):
             _insert_proposta_item(conn, prop_id, i, item)
 
+        # Compute juros_total from generated parcelas — backend é a fonte de verdade
+        # (mantém o card de Custo Financeiro consistente com as parcelas reais).
+        # Só VENDA tem juros; compra é à vista/sem juros.
+        if data['tipo'] == 'VENDA':
+            _atualizar_juros_proposta(conn, prop_id, data.get('condicao_pagamento', {}),
+                                      data.get('data_base_faturamento'), data.get('taxa_juros_aplicada'))
+
         # Log
         conn.execute("INSERT INTO proposta_log (proposta_id, user_id, acao, detalhes) VALUES (?,?,?,?)",
                      (prop_id, user['id'], 'Criação', f'Proposta {numero} criada'))
@@ -1344,6 +1351,15 @@ def update_proposta(id):
             for i, item in enumerate(data['items']):
                 _insert_proposta_item(conn, id, i, item)
             changes.append('itens')
+
+        # Recalcular juros se itens ou condição mudaram (VENDA) — usa valores já atualizados
+        prop_full = conn.execute(
+            "SELECT tipo, condicao_pagamento, data_base_faturamento, taxa_juros_aplicada FROM propostas WHERE id=?",
+            (id,)
+        ).fetchone()
+        if prop_full and prop_full['tipo'] == 'VENDA' and ('items' in data or 'condicao_pagamento' in data):
+            _atualizar_juros_proposta(conn, id, prop_full['condicao_pagamento'],
+                                      prop_full['data_base_faturamento'], prop_full['taxa_juros_aplicada'])
 
         # Log
         if changes:
@@ -1632,6 +1648,15 @@ def converter_proposta(id):
                     VALUES (?,?,?,?,?)''',
                     (ordem_id, p['numero'], p['total'], p['valor'], p['data_vencimento']))
 
+            # Recalcula juros da OV a partir das parcelas geradas (fonte de verdade)
+            soma_parc = sum(p['valor'] for p in parcelas_geradas)
+            juros_ov = round(soma_parc - valor_bruto_total, 2) if soma_parc > valor_bruto_total else 0
+            liquido_ov = round(valor_bruto_total - juros_ov, 2)
+            conn.execute(
+                "UPDATE ordens_venda SET juros_total=?, valor_liquido_abmt=?, taxa_juros_aplicada=? WHERE id=?",
+                (juros_ov, liquido_ov, taxa_aplicada, ordem_id)
+            )
+
             # Update ordem_gerada reference (status already set to Convertida at transaction start)
             conn.execute(
                 "UPDATE propostas SET ordem_gerada_id=?, ordem_gerada_tipo='OV' WHERE id=?",
@@ -1847,6 +1872,15 @@ def create_ov():
             conn.execute('''INSERT INTO ov_parcelas (ov_id, numero_parcela, total_parcelas, valor, data_vencimento)
                 VALUES (?,?,?,?,?)''',
                 (ov_id, p['numero'], p['total'], p['valor'], p['data_vencimento']))
+
+        # Juros da OV a partir das parcelas geradas (fonte de verdade)
+        soma_parc = sum(p['valor'] for p in parcelas_geradas)
+        juros_ov = round(soma_parc - valor_bruto_total, 2) if soma_parc > valor_bruto_total else 0
+        liquido_ov = round(valor_bruto_total - juros_ov, 2)
+        conn.execute(
+            "UPDATE ordens_venda SET juros_total=?, valor_liquido_abmt=?, taxa_juros_aplicada=? WHERE id=?",
+            (juros_ov, liquido_ov, taxa_aplicada, ov_id)
+        )
 
         conn.commit()
     except Exception as e:
@@ -4489,6 +4523,31 @@ def gerar_parcelas_para_ov(condicao_pagamento_json, valor_bruto_total, data_base
     return parcelas
 
 
+def _atualizar_juros_proposta(conn, prop_id, condicao_pagamento, data_base_faturamento, taxa_juros_aplicada):
+    """Calcula juros_total/valor_liquido_abmt da proposta a partir das parcelas geradas
+    pelo serviço centralizado e atualiza no banco. Fonte de verdade do backend.
+    """
+    vb = conn.execute(
+        "SELECT COALESCE(SUM(valor_total),0) as t FROM proposta_items WHERE proposta_id=?",
+        (prop_id,)
+    ).fetchone()['t']
+    try:
+        db_fat = data_base_faturamento or datetime.now().strftime('%Y-%m-%d')
+        data_base_dt = datetime.strptime(db_fat[:10], '%Y-%m-%d')
+    except Exception:
+        data_base_dt = datetime.now()
+    taxa = float(taxa_juros_aplicada or _get_configs(conn).get('taxa_juros_venda_prazo', 2.8))
+    parcelas = gerar_parcelas_para_ov(condicao_pagamento, vb, data_base_dt, taxa)
+    soma = sum(p['valor'] for p in parcelas)
+    juros = round(soma - vb, 2) if soma > vb else 0
+    liquido = round(vb - juros, 2)
+    conn.execute(
+        "UPDATE propostas SET juros_total=?, valor_liquido_abmt=?, taxa_juros_aplicada=? WHERE id=?",
+        (juros, liquido, taxa, prop_id)
+    )
+    return juros, liquido, taxa
+
+
 def calcular_comissao_item(valor_total, categoria, perfil, uf_destino, icms_isento, pis_percentual, configs):
     """Calcula comissão de um item. Função pura — usada pelo sistema e pelos testes.
 
@@ -5036,22 +5095,22 @@ def dashboard_advanced():
         "SELECT COUNT(*) as c FROM notificacoes WHERE user_id=? AND lida=0",
         (user['id'],)).fetchone()['c']
 
-    # Custo financeiro do prazo — juros das propostas de venda do mês (gestor/diretor only)
+    # Custo financeiro do prazo — juros das ORDENS DE VENDA do mês (gestor/diretor only)
+    # Baseado em OVs (vendas confirmadas) para casar com "Faturamento do mês"
     custo_financeiro = {}
     if is_gestor:
         juros_row = conn.execute("""
-            SELECT COALESCE(SUM(p.juros_total), 0) as juros_total,
-                   COALESCE(SUM(p.valor_liquido_abmt), 0) as liquido_total,
-                   COUNT(*) as count_propostas
-            FROM propostas p
-            WHERE p.tipo = 'VENDA' AND p.juros_total > 0
-            AND strftime('%m', p.data_emissao) = ? AND strftime('%Y', p.data_emissao) = ?
-            AND p.status NOT IN ('Perdida', 'Expirada')
+            SELECT COALESCE(SUM(ov.juros_total), 0) as juros_total,
+                   COALESCE(SUM(ov.valor_liquido_abmt), 0) as liquido_total,
+                   COUNT(*) as count_ovs
+            FROM ordens_venda ov
+            WHERE ov.juros_total > 0 AND ov.status != 'Cancelada'
+            AND strftime('%m', ov.data_emissao) = ? AND strftime('%Y', ov.data_emissao) = ?
         """, [mes_str, ano_str]).fetchone()
         custo_financeiro = {
             'juros_total_mes': juros_row['juros_total'],
             'liquido_total_mes': juros_row['liquido_total'],
-            'count_propostas': juros_row['count_propostas'],
+            'count_propostas': juros_row['count_ovs'],
             'percentual_sobre_vendas': round(juros_row['juros_total'] / vendas_mes['total'] * 100, 2) if vendas_mes['total'] > 0 else 0,
         }
 
