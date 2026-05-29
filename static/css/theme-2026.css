@@ -68,13 +68,19 @@ html:not([data-theme="light"]) body::before{
    A PARTIR DAQUI: só no tema ESCURO (html:not light)
    ===================================================== */
 
-/* Sidebar de vidro flutuante */
+/* Sidebar de vidro (drawer no mobile, flutuante no desktop) */
 html:not([data-theme="light"]) .sidebar{
-  background:rgba(255,255,255,.05);
+  background:rgba(20,26,38,.85);
   backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
   border:1px solid var(--glass-border);
-  border-radius:24px; inset:14px auto 14px 14px; height:auto;
-  box-shadow:0 20px 60px rgba(0,0,0,.42);
+}
+/* Flutuante e arredondada só no desktop */
+@media(min-width:769px){
+  html:not([data-theme="light"]) .sidebar{
+    background:rgba(255,255,255,.05);
+    border-radius:24px; inset:14px auto 14px 14px; height:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.42);
+  }
 }
 html:not([data-theme="light"]) .sidebar-logo{
   background:linear-gradient(135deg,#fff,#9ec1ff);
@@ -100,8 +106,8 @@ html:not([data-theme="light"]) .nav-link.active::before{
 }
 html:not([data-theme="light"]) .avatar{ background:var(--gradient-accent); font-weight:600; border-radius:10px; }
 
-/* conteúdo deslocado pela sidebar flutuante (desktop) */
-@media(min-width:993px){
+/* conteúdo deslocado pela sidebar flutuante (desktop) — casa com o breakpoint 768 */
+@media(min-width:769px){
   html:not([data-theme="light"]) .main-area{ margin-left:calc(var(--sidebar-width) + 20px); }
 }
 
@@ -151,9 +157,12 @@ html:not([data-theme="light"]) .card-title svg{
 html:not([data-theme="light"]) .kpi-card{ overflow:hidden; }
 html:not([data-theme="light"]) .kpi-card::before{ height:3px; opacity:.95; }
 html:not([data-theme="light"]) .kpi-label{ letter-spacing:.06em; }
-html:not([data-theme="light"]) .kpi-value{ font-size:28px; }
-html:not([data-theme="light"]) .stat-value{ font-size:24px; }
 html:not([data-theme="light"]) .stat-card.stat-orange{ border-left:3px solid var(--warning); }
+/* números maiores só no desktop — no celular mantém o tamanho que já cabe */
+@media(min-width:769px){
+  html:not([data-theme="light"]) .kpi-value{ font-size:28px; }
+  html:not([data-theme="light"]) .stat-value{ font-size:24px; }
+}
 
 /* Botões */
 html:not([data-theme="light"]) .btn{ border-radius:12px; }
