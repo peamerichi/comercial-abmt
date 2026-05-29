@@ -4733,8 +4733,8 @@ const APP = {
                                 <span class="status-tag status-${u.ativo?'aprovada':'perdida'}" style="cursor:pointer" onclick="APP.toggleUserAtivo(${u.id},${u.ativo?0:1})">${u.ativo?'Ativo':'Inativo'}</span>
                             </td>
                             <td style="padding:10px 8px;text-align:right;white-space:nowrap">
-                                <button class="btn btn-outline btn-sm" title="Redefinir senha" onclick="APP.showResetPassword(${u.id},${JSON.stringify(sanitize(u.nome))})">${LI("settings",14)}</button>
-                                ${u.id !== this.user.id ? `<button class="btn btn-outline btn-sm" title="Excluir usuário" style="color:var(--danger);margin-left:4px" onclick="APP.excluirUsuario(${u.id},${JSON.stringify(sanitize(u.nome))})">${LI("x",14)}</button>` : ''}
+                                <button class="btn btn-outline btn-sm" title="Redefinir senha" onclick="APP.showResetPassword(${u.id},'${String(u.nome).replace(/['\\<>"]/g,'')}')">${LI("settings",14)}</button>
+                                ${u.id !== this.user.id ? `<button class="btn btn-outline btn-sm" title="Excluir usuário" style="color:var(--danger);margin-left:4px" onclick="APP.excluirUsuario(${u.id},'${String(u.nome).replace(/['\\<>"]/g,'')}')">${LI("x",14)}</button>` : ''}
                             </td>
                         </tr>`).join('')}
                     </tbody>
