@@ -3849,15 +3849,80 @@ const APP = {
     },
 
     // ===== RELATÓRIOS =====
+    _renderMargemSection(m, mes, ano) {
+        const meses = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        const corMargem = (pct) => pct >= 20 ? 'var(--success)' : pct >= 10 ? 'var(--warning)' : 'var(--danger)';
+        const temDados = (m.por_categoria && m.por_categoria.length) || (m.por_vendedor && m.por_vendedor.length);
+        return `
+        <div class="card" style="margin-top:16px;border:1px solid var(--border)">
+            <div class="card-header">
+                <span class="card-title">${LI('dollar-sign',20)} Margem Real — ${meses[mes]}/${ano}</span>
+                <span style="font-size:11px;color:var(--text-muted)">vendas × custo informado</span>
+            </div>
+            ${!temDados ? `
+            <div class="empty-state" style="padding:24px">
+                <p>Sem dados de margem neste mês.</p>
+                <p class="empty-hint">A margem aparece quando os itens têm <strong>custo de referência</strong> preenchido nas vendas. Informe o custo ao criar a OV para acompanhar o lucro real.</p>
+            </div>` : `
+            <div class="stats-grid-4" style="margin-bottom:16px">
+                <div class="stat-card"><div class="stat-value">R$ ${this.formatMoney(m.receita_total)}</div><div class="stat-label">Receita (c/ custo)</div></div>
+                <div class="stat-card"><div class="stat-value">R$ ${this.formatMoney(m.custo_total)}</div><div class="stat-label">Custo total</div></div>
+                <div class="stat-card stat-green"><div class="stat-value">R$ ${this.formatMoney(m.lucro_bruto)}</div><div class="stat-label">Lucro bruto</div></div>
+                <div class="stat-card"><div class="stat-value" style="color:${corMargem(m.margem_geral)}">${this.formatNumber(m.margem_geral)}%</div><div class="stat-label">Margem geral</div></div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">${LI('package',14)} Por categoria</h4>
+                    <table class="cat-table" style="width:100%">
+                        <thead><tr><th>CATEGORIA</th><th>RECEITA</th><th>LUCRO</th><th>MARGEM</th></tr></thead>
+                        <tbody>
+                            ${(m.por_categoria||[]).map(c => {
+                                const lucro = (c.receita||0) - (c.custo_total||0);
+                                const pct = c.custo_total > 0 ? (lucro/c.custo_total*100) : 0;
+                                return `<tr>
+                                    <td>${sanitize(c.categoria.replace('de Aço Silício','').trim())}</td>
+                                    <td>R$ ${this.formatMoney(c.receita)}</td>
+                                    <td>R$ ${this.formatMoney(lucro)}</td>
+                                    <td style="color:${corMargem(pct)};font-weight:700">${this.formatNumber(pct)}%</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <h4 style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">${LI('users',14)} Por vendedor</h4>
+                    <table class="cat-table" style="width:100%">
+                        <thead><tr><th>VENDEDOR</th><th>RECEITA</th><th>LUCRO</th><th>MARGEM</th></tr></thead>
+                        <tbody>
+                            ${(m.por_vendedor||[]).map(v => {
+                                const lucro = (v.receita||0) - (v.custo_total||0);
+                                const pct = v.custo_total > 0 ? (lucro/v.custo_total*100) : 0;
+                                return `<tr>
+                                    <td>${sanitize(v.vendedor)}</td>
+                                    <td>R$ ${this.formatMoney(v.receita)}</td>
+                                    <td>R$ ${this.formatMoney(lucro)}</td>
+                                    <td style="color:${corMargem(pct)};font-weight:700">${this.formatNumber(pct)}%</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`}
+        </div>`;
+    },
+
     async renderRelatorios(params = {}) {
         const el = document.getElementById('page-content');
         const ano = params.ano || new Date().getFullYear();
         const trimestre = params.trimestre || Math.ceil((new Date().getMonth() + 1) / 3);
 
         el.innerHTML = `<div class="loading">${this.skeletonKPI(4)}<div class="skeleton skeleton-card" style="height:200px"></div></div>`;
-        const [anual, tri] = await Promise.all([
+        const mesAtual = new Date().getMonth() + 1;
+        const podeMargem = this.hasPermission('ver_margem');
+        const [anual, tri, margem] = await Promise.all([
             this.api(`/api/analytics/${ano}`),
-            this.api(`/api/analytics/trimestre/${ano}/${trimestre}`)
+            this.api(`/api/analytics/trimestre/${ano}/${trimestre}`),
+            podeMargem ? this.api(`/api/analytics/margem?mes=${mesAtual}&ano=${ano}`) : Promise.resolve(null)
         ]);
 
         el.innerHTML = `
@@ -3879,6 +3944,8 @@ const APP = {
             <div class="stat-card"><div class="stat-value">R$ ${this.formatMoney(anual.ticket_medio)}</div><div class="stat-label">Ticket médio</div></div>
             <div class="stat-card"><div class="stat-value">${this.formatNumber(anual.taxa_conversao)}%</div><div class="stat-label">Taxa conversão</div></div>
         </div>
+
+        ${margem ? this._renderMargemSection(margem, mesAtual, ano) : ''}
 
         <div class="grid-2">
             <div class="card">

@@ -1869,13 +1869,22 @@ def create_ov():
                 valor_total, item['categoria'], perfil_key,
                 data.get('uf_destino'), data.get('icms_isento', 0), pis_pct, config)
 
+            # Custo e margem (para análise de margem real) — extrai custo_referencia
+            custo_ref = campos_ov.get('custo_referencia')
+            custo = float(custo_ref) if custo_ref else None
+            margem = None
+            if custo and custo > 0 and val_unit > 0:
+                margem = round((val_unit - custo) / custo * 100, 1)
+
             conn.execute('''INSERT INTO ov_items (ov_id, ordem, categoria, campos_especificos,
                 descricao_complementar, peso_unitario, peso_total, quantidade, unidade,
-                valor_unitario, desconto_tipo, desconto_valor, valor_total, comissao_percentual, comissao_valor)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                valor_unitario, desconto_tipo, desconto_valor, valor_total, comissao_percentual, comissao_valor,
+                custo, margem)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (ov_id, i, item['categoria'], json.dumps(item.get('campos_especificos', {})),
                  item.get('descricao_complementar'), peso_unit, peso_total, qtd, unidade,
-                 val_unit, desc_tipo, desconto, valor_total, com['comissao_percentual'], com['comissao_valor']))
+                 val_unit, desc_tipo, desconto, valor_total, com['comissao_percentual'], com['comissao_valor'],
+                 custo, margem))
 
         # Parcelas — centralized service applies juros compostos
         cond_json = data.get('condicao_pagamento', {})
@@ -6438,7 +6447,6 @@ def analytics_estados(ano):
 
 @app.route('/api/analytics/margem')
 @permission_required('ver_margem')
-@gestor_required
 def analytics_margem():
     """Margin analysis by category and seller"""
     conn = get_db()
